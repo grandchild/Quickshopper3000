@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/action_switch_to_plan"
+        android:title="@string/plan_mode_title"
+    />
+    <item
+        android:id="@+id/action_select_store"
+        android:title="@string/select_store"
+    />
+    <item
+        android:id="@+id/action_edit_store"
+        android:title="@string/edit_store_title"
+    />
+    <item
+        android:id="@+id/action_toggle_done_items"
+        android:title="@string/pref_show_done_items"
+    />
+    <item android:id="@+id/action_settings" android:title="@string/settings" />
+</menu>

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<navigation
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/planFragment"
+>
+
+    <fragment
+        android:id="@+id/planFragment"
+        android:name="org.effekthasch.quickshopper3k.ui.plan.PlanFragment"
+        android:label="@string/plan_mode_title"
+        tools:layout="@layout/fragment_plan"
+    >
+        <action
+            android:id="@+id/action_planFragment_to_shopFragment"
+            app:destination="@id/shopFragment"
+        />
+        <action
+            android:id="@+id/action_planFragment_to_storeEditFragment"
+            app:destination="@id/storeEditFragment"
+        />
+    </fragment>
+
+    <fragment
+        android:id="@+id/shopFragment"
+        android:name="org.effekthasch.quickshopper3k.ui.shop.ShopFragment"
+        android:label="@string/shop_mode_title"
+        tools:layout="@layout/fragment_shop"
+    >
+        <action
+            android:id="@+id/action_shopFragment_to_planFragment"
+            app:destination="@id/planFragment"
+        />
+        <action
+            android:id="@+id/action_shopFragment_to_storeEditFragment"
+            app:destination="@id/storeEditFragment"
+        />
+    </fragment>
+
+    <fragment
+        android:id="@+id/storeEditFragment"
+        android:name="org.effekthasch.quickshopper3k.ui.store.StoreEditFragment"
+        android:label="@string/store_edit_mode_title"
+        tools:layout="@layout/fragment_store_edit"
+    >
+        <argument android:name="storeId" app:argType="long" />
+    </fragment>
+
+</navigation>

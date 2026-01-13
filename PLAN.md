@@ -1,0 +1,308 @@
+# QuickShopper3k Implementation Plan
+
+## Technology Stack
+
+### Core
+- **Language**: Kotlin
+- **Min SDK**: 26 (Android 8.0)
+- **Target SDK**: 34 (Android 14)
+- **Build System**: Gradle with Kotlin DSL
+
+### Architecture
+- **Pattern**: MVVM (Model-View-ViewModel)
+- **DI**: Manual dependency injection (avoid Hilt/Dagger overhead)
+- **Navigation**: Single Activity with Fragments (Navigation Component)
+
+### Key Dependencies
+- **UI**: Material Design Components, RecyclerView, ViewBinding
+- **Database**: Room (persistence library)
+- **Coroutines**: kotlinx-coroutines-android
+- **Lifecycle**: androidx.lifecycle.viewmodel-ktx
+- **Navigation**: androidx.navigation.fragment-ktx
+- **Testing**: JUnit, Mockito, Room testing, Espresso
+
+## Database Schema
+
+### Room Entities
+
+```kotlin
+@Entity(tableName = "items")
+data class ItemEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @ColumnInfo(name = "name", collate = ColumnInfo.NOCASE) val name: String,
+    @ColumnInfo(name = "created_at") val createdAt: Long
+)
+
+@Entity(tableName = "item_states", primaryKeys = ["item_id"])
+data class ItemStateEntity(
+    @ColumnInfo(name = "item_id") val itemId: Long,
+    val state: String
+)
+
+@Entity(tableName = "stores")
+data class StoreEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String
+)
+
+@Entity(tableName = "store_item_unavailability", primaryKeys = ["store_id", "item_id"])
+data class StoreItemUnavailabilityEntity(
+    @ColumnInfo(name = "store_id") val storeId: Long,
+    @ColumnInfo(name = "item_id") val itemId: Long
+)
+
+@Entity(tableName = "store_item_order", primaryKeys = ["store_id", "item_id"])
+data class StoreItemOrderEntity(
+    @ColumnInfo(name = "store_id") val storeId: Long,
+    @ColumnInfo(name = "item_id") val itemId: Long,
+    @ColumnInfo(name = "sort_order") val sortOrder: Int
+)
+```
+
+## Application Architecture
+
+### Package Structure
+```
+com.quickshopper3k/
+├── data/
+│   ├── local/ (Room database, DAOs, entities)
+│   └── repository/
+├── domain/
+│   └── model/ (Item, ItemState, Store)
+├── ui/
+│   ├── MainActivity.kt
+│   ├── plan/ (Fragment, ViewModel, Adapter)
+│   ├── shop/ (Fragment, ViewModel, Adapter)
+│   └── store/ (Fragment, ViewModel, Adapter)
+└── util/
+```
+
+### Domain Models
+
+```kotlin
+enum class ItemState {
+    ACTIVATED, DEACTIVATED, POSTPONED
+}
+
+data class Item(
+    val id: Long,
+    val name: String,
+    val state: ItemState,
+    val createdAt: Long
+)
+
+data class StoreItem(
+    val item: Item,
+    val sortOrder: Int?,
+    val isAvailable: Boolean
+)
+
+data class Store(
+    val id: Long,
+    val name: String
+)
+```
+
+## UI Implementation
+
+### Navigation
+Three fragments: plan (default), shop, store_edit (with storeId argument)
+
+### Screen Layouts
+
+#### Plan Mode
+- **Toolbar**: Title, settings menu
+- **RecyclerView**: Items sorted by state (activated, postponed, deactivated), then by ID
+- **FAB**: Add item
+- **Swipe gestures**: per DESIGN.md state transitions
+- **Long press**: Edit item dialog
+
+#### Shop Mode
+- **Toolbar**: Store selector, toggle show-done-items, settings
+- **RecyclerView**: Filtered & sorted by current store
+- **FAB**: Search (expands to search input)
+- **Swipe gestures**: per DESIGN.md state transitions
+
+#### Store Edit Mode
+- **Toolbar**: Store name, back, delete store option
+- **RecyclerView**: Drag-and-drop reordering enabled
+- **FAB**: Add new store
+- **Item row**: Drag handle, name, availability checkbox
+
+### Theming
+- Material Design Components
+- Light/Dark theme via system setting
+- Three text scale modes in preferences: compact (0.9x), normal (1.0x), large (1.2x)
+
+### Handedness Setting
+SharedPreferences boolean `is_left_handed`:
+- Controls FAB placement (bottom-right vs bottom-left)
+- Reverses swipe directions
+
+### Swipeable Implementation
+ItemTouchHelper with visual feedback (background color/icon during swipe)
+
+## Data Flow
+
+### General Pattern
+- Repository exposes Room queries as Flow
+- ViewModel converts to LiveData via `asLiveData()`
+- Fragment observes LiveData, updates RecyclerView adapter
+- User actions → ViewModel → Repository → Room → Flow emits
+
+### Plan Mode
+- Query items with JOIN on item_states
+- Sort by state, then ID
+
+### Shop Mode
+- Query items with LEFT JOIN on store_item_order and store_item_unavailability
+- Filter by current store (from preferences)
+- Sort: NULL order items first (by ID), then by sort_order, then by ID
+- Search filters in-memory on query result
+
+### Store Edit Mode
+- Load all items for current store
+- Drag updates local state, batch write to DB on exit
+- Availability toggle writes immediately
+
+## Persistence
+
+### SharedPreferences
+Store in default shared preferences:
+- `current_store_id`: Long? (null = no store selected)
+- `is_left_handed`: Boolean (default false)
+- `text_scale`: String ("compact"|"normal"|"large", default "normal")
+- `show_done_items`: Boolean (default false, shop mode only)
+
+### Room Configuration
+```kotlin
+@Database(
+    entities = [
+        ItemEntity::class,
+        ItemStateEntity::class,
+        StoreEntity::class,
+        StoreItemUnavailabilityEntity::class,
+        StoreItemOrderEntity::class
+    ],
+    version = 1
+)
+abstract class AppDatabase : RoomDatabase() {
+    abstract fun itemDao(): ItemDao
+    abstract fun storeDao(): StoreDao
+    abstract fun orderDao(): OrderDao
+}
+```
+
+## State Management
+
+### ViewModels
+- Expose LiveData for data lists (from Flow.asLiveData())
+- Expose LiveData for UI state
+- User action functions use viewModelScope internally
+
+### Error Handling
+- DB operations in try/catch
+- Errors logged and shown to user via Snackbar
+- No crashes on constraint violations
+
+## Testing Strategy
+
+### Unit Tests
+- Repository queries
+- ViewModel state transformations
+- Sorting logic (NULL order handling, duplicate sort_order)
+
+### Integration Tests
+- Room migrations (future)
+- State transitions per DESIGN.md
+- Store filtering and ordering
+
+### UI Tests
+- Swipe gestures
+- FAB actions
+- Navigation
+- Search
+
+## Build Configuration
+
+### build.gradle.kts (app)
+```kotlin
+android {
+    compileSdk = 34
+    defaultConfig {
+        minSdk = 26
+        targetSdk = 34
+    }
+    buildFeatures {
+        viewBinding = true
+    }
+}
+
+dependencies {
+    implementation("androidx.core:core-ktx:1.17.0")
+    implementation("androidx.appcompat:appcompat:1.7.1")
+    implementation("com.google.android.material:material:1.12.0")
+    implementation("androidx.constraintlayout:constraintlayout:2.2.1")
+    implementation("androidx.recyclerview:recyclerview:1.4.0")
+    
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.10.0")
+    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.10.0")
+    implementation("androidx.navigation:navigation-fragment-ktx:2.9.6")
+    implementation("androidx.navigation:navigation-ui-ktx:2.9.6")
+    
+    implementation("androidx.room:room-runtime:2.8.4")
+    implementation("androidx.room:room-ktx:2.8.4")
+    ksp("androidx.room:room-compiler:2.8.4")
+    
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.mockito:mockito-core:5.21.0")
+    testImplementation("androidx.arch.core:core-testing:2.2.0")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
+    androidTestImplementation("androidx.room:room-testing:2.8.4")
+}
+```
+
+### Proguard
+Keep Room entities and DAOs, shrink everything else aggressively.
+
+## Performance Targets
+- APK size: < 3MB (Views + Room significantly smaller than Compose)
+- Cold start: < 800ms on mid-range device
+- List scroll: 60fps for 1000+ items (RecyclerView with DiffUtil)
+- DB operations: < 50ms for typical queries
+
+## Accessibility
+- All interactive elements: minimum 48dp touch target
+- Content descriptions on all icons
+- Support TalkBack navigation
+- Text scale respects system font size + app multiplier
+- High contrast mode compatible
+
+## MVP Scope
+Version 1.0 includes:
+- All three modes functional
+- Local database persistence
+- Handedness setting
+- Theme support
+- Text scale options
+- NO sync/network (deferred to v2.0)
+
+## Implementation Order
+1. Database schema + DAOs
+2. Repository layer + domain models
+3. Plan screen (core functionality)
+4. Shop screen + store selection
+5. Store edit screen
+6. Settings + preferences
+7. Polish + accessibility
+8. Testing
+
+## Implementation Details to Decide
+- Drag animation style
+- Search debounce timing
+- Store selector UI pattern
+- DiffUtil comparison strategy
+- Error event delivery mechanism (SingleLiveEvent vs Channel)
