@@ -16,6 +16,7 @@ import org.effekthasch.quickshopper3k.R
 import org.effekthasch.quickshopper3k.data.local.AppDatabase
 import org.effekthasch.quickshopper3k.data.repository.ShoppingRepository
 import org.effekthasch.quickshopper3k.databinding.DialogAddItemBinding
+import org.effekthasch.quickshopper3k.databinding.DialogImportItemsBinding
 import org.effekthasch.quickshopper3k.databinding.FragmentPlanBinding
 import org.effekthasch.quickshopper3k.domain.model.Item
 import org.effekthasch.quickshopper3k.ui.FabController
@@ -100,6 +101,11 @@ class PlanFragment :
 
     override fun onMenuItemSelected(itemId: Int): Boolean {
         return when (itemId) {
+            R.id.action_import_items -> {
+                showImportItemsDialog()
+                true
+            }
+
             R.id.action_settings -> {
                 true
             }
@@ -264,6 +270,45 @@ class PlanFragment :
             .show()
 
         dialogBinding.itemNameInput.requestFocus()
+    }
+
+    private fun showImportItemsDialog() {
+        val dialogBinding = DialogImportItemsBinding.inflate(layoutInflater)
+
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.import_items_title)
+            .setView(dialogBinding.root)
+            .setPositiveButton(R.string.ok) { _, _ ->
+                val text = dialogBinding.importTextInput.text?.toString() ?: ""
+                if (text.isNotBlank()) {
+                    val progressDialog = AlertDialog.Builder(requireContext())
+                        .setMessage(R.string.importing_items)
+                        .setCancelable(false)
+                        .create()
+                    progressDialog.show()
+
+                    viewModel.importItems(text) { result ->
+                        progressDialog.dismiss()
+                        result.onSuccess { count ->
+                            Snackbar.make(
+                                binding.root,
+                                getString(R.string.items_imported, count),
+                                Snackbar.LENGTH_SHORT
+                            ).show()
+                        }.onFailure {
+                            Snackbar.make(
+                                binding.root,
+                                R.string.error_occurred,
+                                Snackbar.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+
+        dialogBinding.importTextInput.requestFocus()
     }
 
     override fun onDestroyView() {

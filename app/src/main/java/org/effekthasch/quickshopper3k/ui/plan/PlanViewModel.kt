@@ -78,4 +78,27 @@ class PlanViewModel(private val repository: ShoppingRepository) : ViewModel() {
             onResult(result)
         }
     }
+
+    fun importItems(text: String, onResult: (Result<Int>) -> Unit) {
+        viewModelScope.launch {
+            val lines = text.lines()
+                .map { it.trim() }
+                .map { line ->
+                    var stripped = line
+                    while (stripped.startsWith("-") || stripped.startsWith("*")) {
+                        stripped = stripped.drop(1).trimStart()
+                    }
+                    stripped
+                }
+                .filter { it.isNotBlank() }
+
+            if (lines.isEmpty()) {
+                onResult(Result.failure(Exception("No items to import")))
+                return@launch
+            }
+
+            val result = repository.bulkAddItems(lines)
+            onResult(result)
+        }
+    }
 }

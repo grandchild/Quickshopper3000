@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
+        android:id="@+id/action_import_items"
+        android:title="@string/import_items"
+    />
+    <item
         android:id="@+id/action_switch_to_shop"
         android:title="@string/shop_mode_title"
     />

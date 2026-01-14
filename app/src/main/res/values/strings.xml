@@ -19,6 +19,7 @@
     <string name="save">Save</string>
     <string name="edit">Edit</string>
     <string name="add">Add</string>
+    <string name="import_items">Import items</string>
 
     <!-- Item states -->
     <string name="state_done">Done</string>
@@ -30,6 +31,11 @@
     <string name="store_name">Store name</string>
     <string name="add_item_title">Add Item</string>
     <string name="edit_item_title">Edit Item</string>
+    <string name="import_items_title">Import Items</string>
+    <string name="import_items_hint">Paste items here (one per line)</string>
+    <string
+        name="import_items_message"
+    >Each line will be added as a separate item. Leading bullets (- or *) will be removed.</string>
     <string name="add_store_title">Add Store</string>
     <string name="edit_store_title">Edit Store</string>
     <string name="delete_item_title">Delete Item</string>
@@ -65,6 +71,8 @@
     <string name="item_added">Item added</string>
     <string name="item_updated">Item updated</string>
     <string name="item_deleted">Item deleted</string>
+    <string name="items_imported">%1$d items imported</string>
+    <string name="importing_items">Importing items…</string>
     <string name="store_added">Store added</string>
     <string name="store_updated">Store updated</string>
     <string name="store_deleted">Store deleted</string>

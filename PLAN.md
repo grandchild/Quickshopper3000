@@ -330,9 +330,10 @@ Version 1.0 includes:
 8. ✅ Store selector via menu dialog (Stores mode)
 9. ✅ Swipe gestures for availability toggle (Stores mode)
 10. ✅ Specialty store flag in database and UI
-11. ⏳ Settings + preferences
-12. ⏳ Polish + accessibility
-13. ⏳ Testing
+11. ✅ Import items feature (bulk add from text)
+12. ⏳ Settings + preferences
+13. ⏳ Polish + accessibility
+14. ⏳ Testing
 
 ## Implementation Details to Decide
 - Drag animation style

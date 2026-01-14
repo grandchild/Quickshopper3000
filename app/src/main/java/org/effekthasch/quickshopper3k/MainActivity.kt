@@ -150,6 +150,7 @@ class MainActivity : AppCompatActivity() {
         menu.findItem(R.id.action_select_store)?.isVisible = currentPage == 2
         menu.findItem(R.id.action_store_selector)?.isVisible = currentPage == 0
         menu.findItem(R.id.action_delete_store)?.isVisible = currentPage == 0
+        menu.findItem(R.id.action_import_items)?.isVisible = currentPage == 1
         return super.onPrepareOptionsMenu(menu)
     }
 

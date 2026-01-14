@@ -185,4 +185,35 @@ class ShoppingRepository(private val database: AppDatabase) {
             Result.failure(e)
         }
     }
+
+    suspend fun bulkAddItems(names: List<String>): Result<Int> {
+        return try {
+            val timestamp = System.currentTimeMillis()
+            val entities = names.map { name ->
+                ItemEntity(
+                    name = name,
+                    createdAt = timestamp
+                )
+            }
+
+            val ids = itemDao.bulkInsertItems(entities)
+
+            val maxOrder = storeDao.getMaxSortOrderForStore(DEFAULT_STORE_ID) ?: 0
+            val orderEntities = ids.mapIndexed { index, id ->
+                org.effekthasch.quickshopper3k.data.local.StoreItemOrderEntity(
+                    storeId = DEFAULT_STORE_ID,
+                    itemId = id,
+                    sortOrder = maxOrder + index + 1
+                )
+            }
+
+            orderEntities.forEach { orderEntity ->
+                storeDao.insertOrUpdateItemOrder(orderEntity)
+            }
+
+            Result.success(ids.size)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

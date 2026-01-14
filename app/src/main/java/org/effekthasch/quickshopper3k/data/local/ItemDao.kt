@@ -46,6 +46,9 @@ interface ItemDao {
     @Insert
     suspend fun insertItem(item: ItemEntity): Long
 
+    @Insert
+    suspend fun insertItems(items: List<ItemEntity>): List<Long>
+
     @Update
     suspend fun updateItem(item: ItemEntity)
 
@@ -71,6 +74,11 @@ interface ItemDao {
         } else {
             insertOrUpdateItemState(ItemStateEntity(itemId, state))
         }
+    }
+
+    @Transaction
+    suspend fun bulkInsertItems(items: List<ItemEntity>): List<Long> {
+        return insertItems(items)
     }
 }
 
