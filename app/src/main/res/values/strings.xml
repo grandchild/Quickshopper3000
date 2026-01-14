@@ -18,6 +18,7 @@
     <string name="ok">OK</string>
     <string name="save">Save</string>
     <string name="edit">Edit</string>
+    <string name="add">Add</string>
 
     <!-- Item states -->
     <string name="state_done">Done</string>
@@ -39,11 +40,19 @@
     <string
         name="delete_store_message"
     >Are you sure you want to delete this store?</string>
+    <string name="delete_store_confirmation">Delete "%1$s"?</string>
+    <string name="store_name_required">Store name is required</string>
+    <string name="specialty_store">Specialty store</string>
+    <string name="specialty">Specialty</string>
+    <string name="edit_store">Edit store</string>
+    <string name="delete_store">Delete store</string>
+    <string name="store_selected">%1$s selected</string>
 
     <!-- Preferences -->
     <string name="pref_left_handed">Left-handed mode</string>
     <string name="pref_text_scale">Text scale</string>
     <string name="pref_show_done_items">Show done items</string>
+    <string name="toggle_done_items">Toggle done items</string>
     <string name="pref_text_scale_compact">Compact</string>
     <string name="pref_text_scale_normal">Normal</string>
     <string name="pref_text_scale_large">Large</string>
@@ -64,9 +73,11 @@
 
     <!-- Empty states -->
     <string name="no_items">No items yet. Add one to get started!</string>
-    <string name="no_stores">No stores yet. Add one to get started!</string>
+    <string name="no_stores">No stores</string>
+    <string name="stores_mode_title">Stores</string>
 
     <!-- Content descriptions -->
     <string name="drag_handle">Drag to reorder</string>
     <string name="item_availability">Item availability</string>
+    <string name="item_state">Item state</string>
 </resources>

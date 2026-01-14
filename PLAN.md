@@ -11,10 +11,10 @@
 ### Architecture
 - **Pattern**: MVVM (Model-View-ViewModel)
 - **DI**: Manual dependency injection (avoid Hilt/Dagger overhead)
-- **Navigation**: Single Activity with Fragments (Navigation Component)
+- **Navigation**: Single Activity with ViewPager2 (Plan/Shop) + Navigation Component (Store Edit)
 
 ### Key Dependencies
-- **UI**: Material Design Components, RecyclerView, ViewBinding
+- **UI**: Material Design Components, RecyclerView, ViewBinding, ViewPager2
 - **Database**: Room (persistence library)
 - **Coroutines**: kotlinx-coroutines-android
 - **Lifecycle**: androidx.lifecycle.viewmodel-ktx
@@ -42,7 +42,8 @@ data class ItemStateEntity(
 @Entity(tableName = "stores")
 data class StoreEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val name: String
+    val name: String,
+    val specialtyStore: Boolean = false
 )
 
 @Entity(tableName = "store_item_unavailability", primaryKeys = ["store_id", "item_id"])
@@ -71,9 +72,10 @@ com.quickshopper3k/
 │   └── model/ (Item, ItemState, Store)
 ├── ui/
 │   ├── MainActivity.kt
+│   ├── stores/ (Fragment, ViewModel, Adapter - stores list page)
 │   ├── plan/ (Fragment, ViewModel, Adapter)
 │   ├── shop/ (Fragment, ViewModel, Adapter)
-│   └── store/ (Fragment, ViewModel, Adapter)
+│   └── store/ (Fragment, ViewModel, Adapter - store edit page)
 └── util/
 ```
 
@@ -99,34 +101,57 @@ data class StoreItem(
 
 data class Store(
     val id: Long,
-    val name: String
+    val name: String,
+    val specialtyStore: Boolean = false
 )
 ```
 
 ## UI Implementation
 
 ### Navigation
-Three fragments: plan (default), shop, store_edit (with storeId argument)
+- **MainActivity** hosts ViewPager2 with Stores, Plan, and Shop fragments (swipeable)
+- **BottomAppBar** fixed at bottom, content updates based on current page
+- **BottomAppBar** hides when inline add-item or search modes are active
+- **Store Edit** accessed via Navigation Component as separate destination (TODO)
+- Swipe left/right on content area switches between Stores/Plan/Shop modes
+- BottomAppBar observes ViewPager position to update menus/title
 
 ### Screen Layouts
 
-#### Plan Mode
-- **Toolbar**: Title, settings menu
+#### Stores Mode (ViewPager Page 0)
+- **BottomAppBar**: Store selector (dropdown icon), FAB to add store, delete store option
+- **Store header**: Clickable store name at top of item list for editing
+- **RecyclerView**: All items for selected store with drag handles
+- **FAB**: Add store (anchored to BottomAppBar)
+- **Empty state**: "No stores" text when no store selected, no items shown
+- **Item row**: Drag handle, item name (grayed-out if unavailable)
+- **Drag to reorder**: Changes store-specific item order
+- **Swipe right**: Mark item as available (normal appearance)
+- **Swipe left**: Mark item as unavailable (grayed-out with strikethrough)
+- **Add store dialog**: Text input for name + checkbox for "Specialty store"
+- **Store selection**: Via menu icon, shows AlertDialog with single-choice list
+- **Delete store**: Via overflow menu, clears current selection
+- **Horizontal swipe**: Switch to Plan mode
+
+#### Plan Mode (ViewPager Page 1)
+- **BottomAppBar**: Title, settings menu (right side)
 - **RecyclerView**: Items sorted by state (activated, postponed, deactivated), then by ID
-- **FAB**: Add item
-- **Swipe gestures**: per DESIGN.md state transitions
+- **FAB**: Add item (anchored to BottomAppBar)
+- **Item swipe gestures**: per DESIGN.md state transitions
 - **Long press**: Edit item dialog
+- **Horizontal swipe**: Switch left to Stores or right to Shop mode
 
-#### Shop Mode
-- **Toolbar**: Store selector, toggle show-done-items, settings
+#### Shop Mode (ViewPager Page 2)
+- **BottomAppBar**: Store selector, toggle show-done-items, settings (right side)
 - **RecyclerView**: Filtered & sorted by current store
-- **FAB**: Search (expands to search input)
-- **Swipe gestures**: per DESIGN.md state transitions
+- **FAB**: Search (expands to search input, anchored to BottomAppBar)
+- **Item swipe gestures**: per DESIGN.md state transitions
+- **Horizontal swipe**: Switch to Plan mode
 
-#### Store Edit Mode
-- **Toolbar**: Store name, back, delete store option
+#### Store Edit Mode (Separate Navigation Destination)
+- **BottomAppBar**: Store name, back, delete store option
 - **RecyclerView**: Drag-and-drop reordering enabled
-- **FAB**: Add new store
+- **FAB**: Add new store (anchored to BottomAppBar)
 - **Item row**: Drag handle, name, availability checkbox
 
 ### Theming
@@ -136,11 +161,14 @@ Three fragments: plan (default), shop, store_edit (with storeId argument)
 
 ### Handedness Setting
 SharedPreferences boolean `is_left_handed`:
-- Controls FAB placement (bottom-right vs bottom-left)
-- Reverses swipe directions
+- Controls FAB alignment on BottomAppBar (`fabAlignmentMode`: "end" vs "start")
+- Controls menu overflow position on BottomAppBar
+- Reverses item swipe directions
 
 ### Swipeable Implementation
-ItemTouchHelper with visual feedback (background color/icon during swipe)
+- **ViewPager2**: Horizontal page swipes between Plan/Shop modes
+- **ItemTouchHelper**: Item-level swipes with visual feedback (background color/icon)
+- No gesture conflicts: ViewPager handles horizontal content swipes, ItemTouchHelper handles individual item swipes
 
 ## Data Flow
 
@@ -249,6 +277,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.10.0")
     implementation("androidx.navigation:navigation-fragment-ktx:2.9.6")
     implementation("androidx.navigation:navigation-ui-ktx:2.9.6")
+    implementation("androidx.viewpager2:viewpager2:1.1.0")
     
     implementation("androidx.room:room-runtime:2.8.4")
     implementation("androidx.room:room-ktx:2.8.4")
@@ -291,18 +320,25 @@ Version 1.0 includes:
 - NO sync/network (deferred to v2.0)
 
 ## Implementation Order
-1. Database schema + DAOs
-2. Repository layer + domain models
-3. Plan screen (core functionality)
-4. Shop screen + store selection
-5. Store edit screen
-6. Settings + preferences
-7. Polish + accessibility
-8. Testing
+1. ✅ Database schema + DAOs
+2. ✅ Repository layer + domain models
+3. ✅ MainActivity with BottomAppBar + ViewPager2 adapter
+4. ✅ Plan fragment (core functionality)
+5. ✅ Shop fragment + store selection
+6. ✅ ViewPager/BottomAppBar integration
+7. ✅ Stores page (reorder items, set availability per store)
+8. ✅ Store selector via menu dialog (Stores mode)
+9. ✅ Swipe gestures for availability toggle (Stores mode)
+10. ✅ Specialty store flag in database and UI
+11. ⏳ Settings + preferences
+12. ⏳ Polish + accessibility
+13. ⏳ Testing
 
 ## Implementation Details to Decide
 - Drag animation style
 - Search debounce timing
-- Store selector UI pattern
+- Store selector UI pattern (Spinner vs custom dropdown)
 - DiffUtil comparison strategy
 - Error event delivery mechanism (SingleLiveEvent vs Channel)
+- ViewPager page change animation duration
+- BottomAppBar content transition animation

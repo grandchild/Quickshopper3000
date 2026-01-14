@@ -37,6 +37,9 @@ interface ItemDao {
     )
     fun getItemsForStore(storeId: Long): Flow<List<ItemWithStoreInfo>>
 
+    @Query("SELECT * FROM items")
+    suspend fun getAllItems(): List<ItemEntity>
+
     @Query("SELECT * FROM items WHERE id = :itemId")
     suspend fun getItemById(itemId: Long): ItemEntity?
 

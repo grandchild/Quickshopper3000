@@ -4,8 +4,8 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
+import org.effekthasch.quickshopper3k.R
 import org.effekthasch.quickshopper3k.databinding.ItemShoppingItemBinding
-import org.effekthasch.quickshopper3k.domain.model.ItemState
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
 import org.effekthasch.quickshopper3k.ui.common.BaseDragAdapter
 
@@ -14,7 +14,6 @@ class StoreItemsAdapter(
     private val onItemLongClick: (StoreItem) -> Unit,
     private val onStartDrag: (RecyclerView.ViewHolder) -> Unit
 ) : BaseDragAdapter<StoreItem, StoreItemsAdapter.StoreItemViewHolder>() {
-
 
     override fun getStableId(item: StoreItem): Long = item.item.id
 
@@ -61,15 +60,13 @@ class StoreItemsAdapter(
 
         fun bind(storeItem: StoreItem) {
             binding.itemNameText.text = storeItem.item.name
-            binding.itemStateText.text = when (storeItem.item.state) {
-                ItemState.DEACTIVATED -> "Done"
-                ItemState.POSTPONED -> "N/A"
-                else -> ""
-            }
-            binding.itemStateText.visibility = if (storeItem.item.state == ItemState.ACTIVATED) {
-                View.GONE
+
+            binding.itemStateIcon.visibility = View.GONE
+
+            if (storeItem.isAvailable) {
+                binding.itemNameText.alpha = 1.0f
             } else {
-                View.VISIBLE
+                binding.itemNameText.alpha = 0.5f
             }
         }
     }

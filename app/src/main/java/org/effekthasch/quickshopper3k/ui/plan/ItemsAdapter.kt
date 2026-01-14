@@ -4,6 +4,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
+import org.effekthasch.quickshopper3k.R
 import org.effekthasch.quickshopper3k.databinding.ItemShoppingItemBinding
 import org.effekthasch.quickshopper3k.domain.model.Item
 import org.effekthasch.quickshopper3k.domain.model.ItemState
@@ -61,15 +62,21 @@ class ItemsAdapter(
 
         fun bind(item: Item) {
             binding.itemNameText.text = item.name
-            binding.itemStateText.text = when (item.state) {
-                ItemState.DEACTIVATED -> "Done"
-                ItemState.POSTPONED -> "N/A"
-                else -> ""
-            }
-            binding.itemStateText.visibility = if (item.state == ItemState.ACTIVATED) {
-                View.GONE
-            } else {
-                View.VISIBLE
+
+            when (item.state) {
+                ItemState.DEACTIVATED -> {
+                    binding.itemStateIcon.setImageResource(R.drawable.ic_state_done)
+                    binding.itemStateIcon.visibility = View.VISIBLE
+                }
+
+                ItemState.POSTPONED -> {
+                    binding.itemStateIcon.setImageResource(R.drawable.ic_state_na)
+                    binding.itemStateIcon.visibility = View.VISIBLE
+                }
+
+                ItemState.ACTIVATED -> {
+                    binding.itemStateIcon.visibility = View.INVISIBLE
+                }
             }
         }
     }

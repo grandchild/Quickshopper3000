@@ -106,17 +106,25 @@ class ShoppingRepository(private val database: AppDatabase) {
 
     fun getAllStores(): Flow<List<Store>> {
         return storeDao.getAllStores().map { stores ->
-            stores.map { Store(it.id, it.name) }
+            stores.map { Store(it.id, it.name, it.specialtyStore) }
         }
     }
 
     suspend fun getStoreById(storeId: Long): Store? {
-        return storeDao.getStoreById(storeId)?.let { Store(it.id, it.name) }
+        return storeDao.getStoreById(storeId)?.let { Store(it.id, it.name, it.specialtyStore) }
     }
 
-    suspend fun addStore(name: String): Result<Long> {
+    suspend fun addStore(name: String, specialtyStore: Boolean = false): Result<Long> {
         return try {
-            val id = storeDao.insertStore(StoreEntity(name = name))
+            val id = storeDao.insertStore(StoreEntity(name = name, specialtyStore = specialtyStore))
+
+            if (specialtyStore) {
+                val allItems = itemDao.getAllItems()
+                allItems.forEach { item ->
+                    storeDao.setItemAvailability(id, item.id, false)
+                }
+            }
+
             Result.success(id)
         } catch (e: Exception) {
             Result.failure(e)
@@ -128,6 +136,20 @@ class ShoppingRepository(private val database: AppDatabase) {
             val store = storeDao.getStoreById(storeId)
             if (store != null) {
                 storeDao.updateStore(store.copy(name = newName))
+                Result.success(Unit)
+            } else {
+                Result.failure(IllegalArgumentException("Store not found"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateStore(storeId: Long, newName: String, specialtyStore: Boolean): Result<Unit> {
+        return try {
+            val store = storeDao.getStoreById(storeId)
+            if (store != null) {
+                storeDao.updateStore(store.copy(name = newName, specialtyStore = specialtyStore))
                 Result.success(Unit)
             } else {
                 Result.failure(IllegalArgumentException("Store not found"))

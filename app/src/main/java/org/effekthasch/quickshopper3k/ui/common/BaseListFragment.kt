@@ -114,7 +114,7 @@ abstract class BaseListFragment<T> : Fragment() {
         imm?.hideSoftInputFromWindow(bottomBarInput.windowToken, 0)
     }
 
-    protected fun applyItems(items: List<T>) {
+    protected open fun applyItems(items: List<T>) {
         if (!isSwiping && !isDragging) {
             adapter.setItems(items)
         }
@@ -122,6 +122,10 @@ abstract class BaseListFragment<T> : Fragment() {
 
     inner class SwipeCallback : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
         private var pendingSwipeAction: Pair<T, Int>? = null
+
+        override fun getSwipeThreshold(viewHolder: RecyclerView.ViewHolder): Float {
+            return 0.3f
+        }
 
         override fun onMove(
             recyclerView: RecyclerView,
@@ -187,15 +191,13 @@ abstract class BaseListFragment<T> : Fragment() {
 
             val item = adapter.getItems()[position]
             val paint = android.graphics.Paint()
-            val textPaint = android.graphics.Paint().apply {
-                color = android.graphics.Color.WHITE
-                textSize = 48f
-                textAlign = android.graphics.Paint.Align.CENTER
-            }
+            val swipeThreshold = itemView.width * 0.3f
 
             if (dX > 0) {
                 val targetState = getSwipeRightTargetState(item)
-                val color = getColorForState(targetState)
+                val baseColor = getColorForState(targetState)
+                val thresholdReached = dX >= swipeThreshold
+                val color = if (thresholdReached) baseColor else desaturateColor(baseColor)
 
                 paint.color = color
                 c.drawRect(
@@ -206,10 +208,12 @@ abstract class BaseListFragment<T> : Fragment() {
                     paint
                 )
 
-                drawStateLabel(c, itemView, dX, targetState, textPaint, isLeftSide = true)
+                drawStateIcon(c, itemView, dX, targetState, isLeftSide = true)
             } else if (dX < 0) {
                 val targetState = getSwipeLeftTargetState(item)
-                val color = getColorForState(targetState)
+                val baseColor = getColorForState(targetState)
+                val thresholdReached = kotlin.math.abs(dX) >= swipeThreshold
+                val color = if (thresholdReached) baseColor else desaturateColor(baseColor)
 
                 paint.color = color
                 c.drawRect(
@@ -220,24 +224,33 @@ abstract class BaseListFragment<T> : Fragment() {
                     paint
                 )
 
-                drawStateLabel(c, itemView, dX, targetState, textPaint, isLeftSide = false)
+                drawStateIcon(c, itemView, dX, targetState, isLeftSide = false)
             }
+        }
+
+        private fun desaturateColor(color: Int): Int {
+            val hsv = FloatArray(3)
+            android.graphics.Color.colorToHSV(color, hsv)
+            hsv[1] = hsv[1] * 0.8f
+            hsv[2] = hsv[2] * 0.8f
+            return android.graphics.Color.HSVToColor(hsv)
         }
 
         private fun getColorForState(targetState: String): Int {
             return when (targetState) {
                 "Done" -> android.graphics.Color.parseColor("#4CAF50")
                 "N/A" -> android.graphics.Color.parseColor("#FF9800")
+                "Needed" -> android.graphics.Color.parseColor("#2196F3")
+                "Available" -> android.graphics.Color.parseColor("#4CAF50")
                 else -> android.graphics.Color.parseColor("#2196F3")
             }
         }
 
-        private fun drawStateLabel(
+        private fun drawStateIcon(
             c: android.graphics.Canvas,
             itemView: android.view.View,
             dX: Float,
             targetState: String,
-            textPaint: android.graphics.Paint,
             isLeftSide: Boolean
         ) {
             if (targetState.isEmpty()) return
@@ -248,27 +261,20 @@ abstract class BaseListFragment<T> : Fragment() {
             }
 
             val iconSize = 50f
-            val spacing = 10f
-            val centerX = if (isLeftSide) {
-                itemView.left + dX / 2
+            val padding = 48f
+            val iconX = if (isLeftSide) {
+                itemView.left + padding
             } else {
-                itemView.right + dX / 2
+                itemView.right - padding
             }
             val centerY = itemView.top + (itemView.height / 2f)
-
-            val textBounds = android.graphics.Rect()
-            textPaint.getTextBounds(targetState, 0, targetState.length, textBounds)
-            val totalWidth = iconSize + spacing + textBounds.width()
-
-            val iconX = centerX - totalWidth / 2 + iconSize / 2
-            val textX = centerX - totalWidth / 2 + iconSize + spacing + textBounds.width() / 2
 
             when (targetState) {
                 "Done" -> drawCheckmark(c, iconX, centerY, iconSize, iconPaint)
                 "N/A" -> drawX(c, iconX, centerY, iconSize, iconPaint)
+                "Needed" -> drawPlus(c, iconX, centerY, iconSize, iconPaint)
+                "Available" -> drawCheckmark(c, iconX, centerY, iconSize, iconPaint)
             }
-
-            c.drawText(targetState, textX, centerY + textBounds.height() / 2, textPaint)
         }
 
         private fun drawCheckmark(
@@ -313,6 +319,31 @@ abstract class BaseListFragment<T> : Fragment() {
             canvas.drawLine(
                 centerX + size * 0.3f, centerY - size * 0.3f,
                 centerX - size * 0.3f, centerY + size * 0.3f,
+                strokePaint
+            )
+        }
+
+        private fun drawPlus(
+            canvas: android.graphics.Canvas,
+            centerX: Float,
+            centerY: Float,
+            size: Float,
+            paint: android.graphics.Paint
+        ) {
+            val strokePaint = android.graphics.Paint(paint).apply {
+                style = android.graphics.Paint.Style.STROKE
+                strokeWidth = size * 0.15f
+                strokeCap = android.graphics.Paint.Cap.ROUND
+            }
+
+            canvas.drawLine(
+                centerX, centerY - size * 0.3f,
+                centerX, centerY + size * 0.3f,
+                strokePaint
+            )
+            canvas.drawLine(
+                centerX - size * 0.3f, centerY,
+                centerX + size * 0.3f, centerY,
                 strokePaint
             )
         }

@@ -5,24 +5,37 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:minHeight="48dp"
-    android:background="?attr/selectableItemBackground"
+    android:minHeight="40dp"
+    android:background="?android:attr/colorBackground"
+    android:foreground="?attr/selectableItemBackground"
     android:paddingStart="16dp"
     android:paddingEnd="16dp"
-    android:paddingTop="12dp"
-    android:paddingBottom="12dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp"
 >
 
     <ImageView
         android:id="@+id/dragHandle"
         android:layout_width="24dp"
         android:layout_height="24dp"
-        android:src="@android:drawable/ic_menu_sort_by_size"
+        android:src="@drawable/ic_drag_handle"
         android:contentDescription="@string/drag_handle"
         android:alpha="0.5"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
+    />
+
+    <ImageView
+        android:id="@+id/itemStateIcon"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_marginStart="12dp"
+        android:contentDescription="@string/item_state"
+        app:layout_constraintStart_toEndOf="@+id/dragHandle"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        tools:src="@android:drawable/ic_delete"
     />
 
     <TextView
@@ -31,25 +44,12 @@
         android:layout_height="wrap_content"
         android:textSize="16sp"
         android:textColor="?android:attr/textColorPrimary"
-        android:layout_marginStart="12dp"
-        app:layout_constraintStart_toEndOf="@+id/dragHandle"
-        app:layout_constraintEnd_toStartOf="@+id/itemStateText"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
-        tools:text="Milk"
-    />
-
-    <TextView
-        android:id="@+id/itemStateText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textSize="14sp"
-        android:textColor="?android:attr/textColorSecondary"
         android:layout_marginStart="8dp"
+        app:layout_constraintStart_toEndOf="@+id/itemStateIcon"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
-        tools:text="Done"
+        tools:text="Milk"
     />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

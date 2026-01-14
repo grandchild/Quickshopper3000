@@ -17,6 +17,12 @@ abstract class BaseDragAdapter<T, VH : RecyclerView.ViewHolder> : RecyclerView.A
 
     fun getItems(): List<T> = backingItems
 
+    fun updateItemAt(position: Int, newItem: T) {
+        if (position !in backingItems.indices) return
+        backingItems[position] = newItem
+        notifyItemChanged(position)
+    }
+
     fun moveItem(fromPosition: Int, toPosition: Int) {
         if (fromPosition == toPosition) return
         if (fromPosition !in backingItems.indices || toPosition !in backingItems.indices) return

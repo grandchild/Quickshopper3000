@@ -1,39 +1,29 @@
 package org.effekthasch.quickshopper3k.ui.plan
 
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.Rect
 import android.os.Bundle
-import android.util.Log
-import android.view.GestureDetector
 import android.view.LayoutInflater
 import android.view.MenuItem
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import androidx.appcompat.app.AlertDialog
-import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.getSystemService
-import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
-import androidx.navigation.fragment.findNavController
-import androidx.recyclerview.widget.ItemTouchHelper
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.snackbar.Snackbar
+import org.effekthasch.quickshopper3k.MainActivity
 import org.effekthasch.quickshopper3k.R
 import org.effekthasch.quickshopper3k.data.local.AppDatabase
 import org.effekthasch.quickshopper3k.data.repository.ShoppingRepository
 import org.effekthasch.quickshopper3k.databinding.DialogAddItemBinding
 import org.effekthasch.quickshopper3k.databinding.FragmentPlanBinding
 import org.effekthasch.quickshopper3k.domain.model.Item
+import org.effekthasch.quickshopper3k.ui.FabController
 
 class PlanFragment :
-    org.effekthasch.quickshopper3k.ui.common.BaseListFragment<org.effekthasch.quickshopper3k.domain.model.Item>() {
+    org.effekthasch.quickshopper3k.ui.common.BaseListFragment<Item>(),
+    FabController {
+
     private var _binding: FragmentPlanBinding? = null
     private val binding get() = _binding!!
 
@@ -100,6 +90,37 @@ class PlanFragment :
         }
     }
 
+    override fun onFabClick() {
+        if (binding.addItemContainer.visibility == View.VISIBLE) {
+            binding.addItemInput.clearFocus()
+        } else {
+            showInlineAddItem()
+        }
+    }
+
+    override fun onMenuItemSelected(itemId: Int): Boolean {
+        return when (itemId) {
+            R.id.action_settings -> {
+                true
+            }
+
+            else -> false
+        }
+    }
+
+    override fun updateFabIcon(iconRes: Int, contentDescription: String) {
+    }
+
+    override fun showFab() {
+        (activity as? MainActivity)?.let {
+        }
+    }
+
+    override fun hideFab() {
+        (activity as? MainActivity)?.let {
+        }
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -119,83 +140,13 @@ class PlanFragment :
             PlanViewModelFactory(repository)
         )[PlanViewModel::class.java]
 
-        setupTopBar()
         setupRecyclerView(binding.itemsRecyclerView)
         setupBottomBar(binding.addItemContainer, binding.addItemInput)
-        setBottomBarToggleViewCompat(binding.addItemFab)
-        setupFab()
+        setupInlineAddItem()
         observeItems()
     }
 
-    private fun setupTopBar() {
-        val topBarLayout =
-            binding.root.findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.topBarLayout)
-        val topBar = topBarLayout ?: return
-        val modeTitle = topBar.findViewById<android.widget.TextView>(R.id.modeTitle)
-
-        topBar.title = ""
-        modeTitle.setText(R.string.plan_mode_title)
-
-        val bgColor = ContextCompat.getColor(requireContext(), R.color.plan_mode_bg)
-        topBar.setBackgroundColor(bgColor)
-
-        requireActivity().window.statusBarColor = bgColor
-
-        topBar.inflateMenu(R.menu.menu_plan)
-        topBar.setOnMenuItemClickListener { menuItem ->
-            onOptionsItemSelected(menuItem)
-        }
-
-        val gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
-            override fun onFling(
-                e1: MotionEvent?,
-                e2: MotionEvent,
-                velocityX: Float,
-                velocityY: Float
-            ): Boolean {
-                if (e1 == null) return false
-
-                val diffX = e2.x - e1.x
-                val diffY = e2.y - e1.y
-
-                if (Math.abs(diffX) > Math.abs(diffY)) {
-                    if (Math.abs(diffX) > 100 && Math.abs(velocityX) > 100) {
-                        if (diffX < 0) {
-                            findNavController().navigate(R.id.action_planFragment_to_shopFragment)
-                        }
-                        return true
-                    }
-                }
-                return false
-            }
-        })
-
-        topBar.setOnTouchListener { _, event ->
-            gestureDetector.onTouchEvent(event) ?: false
-        }
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            R.id.action_switch_to_shop -> {
-                findNavController().navigate(R.id.action_planFragment_to_shopFragment)
-                true
-            }
-
-            R.id.action_settings -> {
-                true
-            }
-
-            else -> super.onOptionsItemSelected(item)
-        }
-    }
-
-
-    private fun setupFab() {
-        binding.addItemFab.setOnClickListener {
-            showBottomBar(loadDraft())
-        }
-
+    private fun setupInlineAddItem() {
         binding.addItemInput.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
                 saveInlineItem()
@@ -243,31 +194,29 @@ class PlanFragment :
 
     private fun showInlineAddItem() {
         binding.addItemContainer.visibility = View.VISIBLE
-        binding.addItemFab.hide()
         binding.addItemInput.setText(loadDraft())
         binding.addItemInput.requestFocus()
         binding.addItemInput.selectAll()
         val imm = getSystemService(requireContext(), InputMethodManager::class.java)
         imm?.showSoftInput(binding.addItemInput, InputMethodManager.SHOW_IMPLICIT)
+        (activity as? MainActivity)?.hideBottomBar()
     }
 
     private fun hideInlineAddItem() {
         binding.addItemContainer.visibility = View.GONE
-        binding.addItemFab.show()
         val imm = getSystemService(requireContext(), InputMethodManager::class.java)
         imm?.hideSoftInputFromWindow(binding.addItemInput.windowToken, 0)
+        (activity as? MainActivity)?.showBottomBar()
     }
 
     private fun saveInlineItem() {
         val name = binding.addItemInput.text?.toString() ?: ""
         binding.addItemInput.text.clear()
-        binding.addItemInput.clearFocus()
 
         if (name.isNotBlank()) {
             viewModel.addItem(name) { result ->
                 result.onSuccess {
                     clearDraft()
-                    Snackbar.make(binding.root, R.string.item_added, Snackbar.LENGTH_SHORT).show()
                 }.onFailure {
                     Snackbar.make(binding.root, R.string.error_occurred, Snackbar.LENGTH_SHORT).show()
                 }
@@ -275,37 +224,10 @@ class PlanFragment :
         }
     }
 
-
     private fun observeItems() {
         viewModel.items.observe(viewLifecycleOwner) { items ->
             applyItems(items)
         }
-    }
-
-    private fun showAddItemDialog() {
-        val dialogBinding = DialogAddItemBinding.inflate(layoutInflater)
-
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.add_item_title)
-            .setView(dialogBinding.root)
-            .setPositiveButton(R.string.ok) { _, _ ->
-                val name = dialogBinding.itemNameInput.text?.toString() ?: ""
-                if (name.isNotBlank()) {
-                    viewModel.addItem(name) { result ->
-                        result.onSuccess {
-                            Snackbar.make(binding.root, R.string.item_added, Snackbar.LENGTH_SHORT).show()
-                        }.onFailure {
-                            Snackbar.make(binding.root, R.string.error_occurred, Snackbar.LENGTH_SHORT).show()
-                        }
-                    }
-                } else {
-                    Snackbar.make(binding.root, R.string.error_empty_name, Snackbar.LENGTH_SHORT).show()
-                }
-            }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
-
-        dialogBinding.itemNameInput.requestFocus()
     }
 
     private fun showEditItemDialog(item: Item) {
@@ -343,7 +265,6 @@ class PlanFragment :
 
         dialogBinding.itemNameInput.requestFocus()
     }
-
 
     override fun onDestroyView() {
         super.onDestroyView()

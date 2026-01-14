@@ -22,6 +22,7 @@
     - by default all items are available in every store, i.e. they are only marked as unavailable
     - initially there are no shops, but there's a "null" default shop, that's not visible but has an ordering
       and no filtering (i.e. all items are available)
+    - stores can be marked as "specialty stores" where existing and new items are default-unavailable.
 - three modes: plan, shop, edit store
     - plan: add/activate/deactivate/postpone/edit/delete items
     - shop: check/postpone items
@@ -39,6 +40,9 @@
             - deactivated items are not visible by default in shop mode
             - but show-done-items is be togglebale via overflow/options
         - deactivate <-L- postponed -R-> activate
+    - store (new items are default available):
+        - unavailable <-L- available -R-> unavailable
+        - available <-L- unavailable -R-> available
 - FAB in each mode:
     - plan: add item ("+")
     - shop: search-as-you-type (search icon, magnifier)
