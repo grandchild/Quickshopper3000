@@ -17,20 +17,44 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
+        android:backgroundTint="?attr/colorPrimary"
         app:fabAlignmentMode="end"
         app:fabCradleMargin="8dp"
         app:fabCradleRoundedCornerRadius="12dp"
         app:fabCradleVerticalOffset="8dp"
     >
 
-        <TextView
-            android:id="@+id/bottomBarTitle"
+        <LinearLayout
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textAppearance="?attr/textAppearanceTitleMedium"
-            android:textColor="?attr/colorOnPrimary"
-            android:text="@string/plan_mode_title"
-        />
+            android:layout_height="48dp"
+            android:orientation="horizontal"
+            android:layout_gravity="start"
+        >
+
+            <ImageButton
+                android:id="@+id/overflowMenuButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/ic_menu_overflow"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/settings"
+            />
+
+            <TextView
+                android:id="@+id/storeSelectorButton"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:gravity="center"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="◉"
+                android:textSize="18sp"
+                android:textColor="?attr/colorOnPrimary"
+                android:background="?attr/selectableItemBackground"
+                android:visibility="gone"
+            />
+
+        </LinearLayout>
 
     </com.google.android.material.bottomappbar.BottomAppBar>
 

@@ -76,10 +76,11 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
         }
 
         viewModel.currentStore.observe(viewLifecycleOwner) { _ ->
+            (activity as? org.effekthasch.quickshopper3k.MainActivity)?.updateStoreSelectorButton()
         }
 
-        viewModel.allStores.observe(viewLifecycleOwner) { stores ->
-            updateStoreSpinner(stores)
+        viewModel.allStores.observe(viewLifecycleOwner) { _ ->
+            (activity as? org.effekthasch.quickshopper3k.MainActivity)?.updateStoreSelectorButton()
         }
 
         viewModel.error.observe(viewLifecycleOwner) { message ->
@@ -94,51 +95,9 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
             binding.emptyStateText.visibility = View.VISIBLE
             binding.emptyStateText.text = getString(R.string.no_stores)
             binding.recyclerView.visibility = View.GONE
-            binding.storeHeader.visibility = View.GONE
         } else {
             binding.emptyStateText.visibility = View.GONE
             binding.recyclerView.visibility = View.VISIBLE
-            binding.storeHeader.visibility = View.VISIBLE
-        }
-    }
-
-    private fun updateStoreSpinner(stores: List<org.effekthasch.quickshopper3k.domain.model.Store>) {
-        if (stores.isEmpty()) {
-            binding.storeHeader.visibility = View.GONE
-            return
-        }
-
-        binding.storeHeader.visibility = View.VISIBLE
-
-        val storeNames = stores.map { store ->
-            val prefix = if (store.specialtyStore) "★ " else ""
-            prefix + store.name
-        }
-
-        val adapter = ArrayAdapter(
-            requireContext(),
-            android.R.layout.simple_spinner_item,
-            storeNames
-        )
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        binding.storeSelector.adapter = adapter
-
-        val currentStoreId = prefsManager.currentStoreId
-        val currentIndex = stores.indexOfFirst { it.id == currentStoreId }
-        if (currentIndex >= 0) {
-            binding.storeSelector.setSelection(currentIndex)
-        }
-
-        binding.storeSelector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                val selectedStore = stores[position]
-                if (selectedStore.id != prefsManager.currentStoreId) {
-                    viewModel.selectStore(selectedStore.id)
-                }
-            }
-
-            override fun onNothingSelected(parent: AdapterView<*>?) {
-            }
         }
     }
 
@@ -267,6 +226,49 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
     }
 
     override fun hideFab() {
+    }
+
+    override fun onResume() {
+        super.onResume()
+        (activity as? org.effekthasch.quickshopper3k.MainActivity)?.updateStoreSelectorButton()
+    }
+
+    fun getCurrentStoreName(): String {
+        val currentStoreId = prefsManager.currentStoreId ?: return "◉"
+        val stores = viewModel.allStores.value ?: return "◉"
+        val store = stores.find { it.id == currentStoreId }
+        return store?.name ?: "◉"
+    }
+
+    fun showStoreSelectionDialog() {
+        val stores = viewModel.allStores.value ?: return
+        if (stores.isEmpty()) return
+
+        val storeNames = stores.map { store ->
+            val prefix = if (store.specialtyStore) "★ " else ""
+            prefix + store.name
+        }.toTypedArray()
+
+        val currentStoreId = prefsManager.currentStoreId
+        val currentIndex = stores.indexOfFirst { it.id == currentStoreId }
+
+        val anchorView = (activity as? org.effekthasch.quickshopper3k.MainActivity)
+            ?.findViewById<android.view.View>(org.effekthasch.quickshopper3k.R.id.storeSelectorButton)
+            ?: return
+
+        val popupMenu = android.widget.PopupMenu(requireContext(), anchorView)
+        stores.forEachIndexed { index, store ->
+            val displayName = if (store.specialtyStore) "★ ${store.name}" else store.name
+            popupMenu.menu.add(0, index, index, displayName)
+        }
+
+        popupMenu.setOnMenuItemClickListener { item ->
+            val selectedStore = stores[item.itemId]
+            viewModel.selectStore(selectedStore.id)
+            true
+        }
+
+        popupMenu.show()
     }
 
     override fun onDestroyView() {

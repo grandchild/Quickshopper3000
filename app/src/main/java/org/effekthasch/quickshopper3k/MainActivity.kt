@@ -32,13 +32,67 @@ class MainActivity : AppCompatActivity() {
         setupViewPager()
         binding.viewPager.setCurrentItem(1, false)
         setupFab()
+        setupOverflowButton()
+        setupStoreSelectorButton()
         applyHandednessSettings()
     }
 
     private fun setupBottomAppBar() {
-        setSupportActionBar(binding.bottomAppBar)
         updateBottomAppBarForPage(1)
         setupBottomBarGestures()
+    }
+
+    private fun setupOverflowButton() {
+        binding.overflowMenuButton.setOnClickListener { view ->
+            val popup = android.widget.PopupMenu(this, view)
+            popup.menuInflater.inflate(R.menu.bottom_app_bar_menu, popup.menu)
+
+            popup.menu.findItem(R.id.action_toggle_done_items)?.isVisible = currentPage == 2
+            popup.menu.findItem(R.id.action_store_selector)?.isVisible = false
+            popup.menu.findItem(R.id.action_select_store)?.isVisible = false
+            popup.menu.findItem(R.id.action_edit_store)?.isVisible = currentPage == 0
+            popup.menu.findItem(R.id.action_delete_store)?.isVisible = currentPage == 0
+            popup.menu.findItem(R.id.action_import_items)?.isVisible = currentPage == 1
+            popup.menu.findItem(R.id.action_activate_all)?.isVisible = currentPage == 1
+            popup.menu.findItem(R.id.action_deactivate_all)?.isVisible = currentPage == 1
+
+            popup.setOnMenuItemClickListener { item ->
+                onOptionsItemSelected(item)
+            }
+
+            popup.show()
+        }
+    }
+
+    private fun setupStoreSelectorButton() {
+        binding.storeSelectorButton.setOnClickListener {
+            val fragment = getCurrentFragment()
+            if (fragment is org.effekthasch.quickshopper3k.ui.shop.ShopFragment) {
+                fragment.showStoreSelectionDropdown(null)
+            } else if (fragment is org.effekthasch.quickshopper3k.ui.stores.StoresFragment) {
+                fragment.showStoreSelectionDialog()
+            }
+        }
+    }
+
+    fun updateStoreSelectorButton() {
+        when (currentPage) {
+            0 -> {
+                binding.storeSelectorButton.visibility = android.view.View.VISIBLE
+                val storesFragment = getCurrentFragment() as? org.effekthasch.quickshopper3k.ui.stores.StoresFragment
+                binding.storeSelectorButton.text = storesFragment?.getCurrentStoreName() ?: "◉"
+            }
+
+            2 -> {
+                binding.storeSelectorButton.visibility = android.view.View.VISIBLE
+                val shopFragment = getCurrentFragment() as? org.effekthasch.quickshopper3k.ui.shop.ShopFragment
+                binding.storeSelectorButton.text = shopFragment?.getStoreMenuTitle() ?: "◉"
+            }
+
+            else -> {
+                binding.storeSelectorButton.visibility = android.view.View.GONE
+            }
+        }
     }
 
     private fun setupBottomBarGestures() {
@@ -82,6 +136,7 @@ class MainActivity : AppCompatActivity() {
                 currentPage = position
                 updateBottomAppBarForPage(position)
                 updateFabForPage(position)
+                updateStoreSelectorButton()
                 invalidateOptionsMenu()
             }
         })
@@ -112,13 +167,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateBottomAppBarForPage(position: Int) {
-        val title = when (position) {
-            0 -> getString(R.string.stores_mode_title)
-            1 -> getString(R.string.plan_mode_title)
-            2 -> getString(R.string.shop_mode_title)
-            else -> ""
-        }
-        binding.bottomBarTitle.text = title
+        // Title removed for space
     }
 
     private fun updateFabForPage(position: Int) {
@@ -142,24 +191,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.bottom_app_bar_menu, menu)
         return true
     }
 
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        menu.findItem(R.id.action_toggle_done_items)?.isVisible = currentPage == 2
-        menu.findItem(R.id.action_select_store)?.isVisible = currentPage == 2
-        menu.findItem(R.id.action_store_selector)?.isVisible = currentPage == 0
-        menu.findItem(R.id.action_delete_store)?.isVisible = currentPage == 0
-        menu.findItem(R.id.action_import_items)?.isVisible = currentPage == 1
-        menu.findItem(R.id.action_activate_all)?.isVisible = currentPage == 1
-        menu.findItem(R.id.action_deactivate_all)?.isVisible = currentPage == 1
+        updateStoreSelectorButton()
         return super.onPrepareOptionsMenu(menu)
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         val fragment = getCurrentFragment()
-        if (fragment != null && fragment.onMenuItemSelected(item.itemId)) {
+        if (fragment != null && fragment.onMenuItemSelected(item.itemId, item)) {
             return true
         }
 

@@ -5,57 +5,60 @@
 >
 
     <item
-        android:id="@+id/action_store_selector"
-        android:title="@string/select_store"
-        android:icon="@android:drawable/ic_menu_mapmode"
-        app:showAsAction="ifRoom"
-    />
-
-    <item
-        android:id="@+id/action_select_store"
-        android:title="@string/select_store"
-        android:icon="@android:drawable/ic_menu_mapmode"
-        app:showAsAction="ifRoom"
-    />
-
-    <item
         android:id="@+id/action_toggle_done_items"
         android:title="@string/toggle_done_items"
-        android:icon="@android:drawable/ic_menu_view"
-        app:showAsAction="never"
+        android:orderInCategory="100"
+    />
+
+    <item
+        android:id="@+id/action_edit_store"
+        android:title="@string/edit_store"
+        android:orderInCategory="100"
     />
 
     <item
         android:id="@+id/action_delete_store"
         android:title="@string/delete_store"
-        android:icon="@android:drawable/ic_menu_delete"
-        app:showAsAction="never"
+        android:orderInCategory="100"
     />
 
     <item
         android:id="@+id/action_import_items"
         android:title="@string/import_items"
-        android:icon="@android:drawable/ic_menu_add"
-        app:showAsAction="never"
+        android:orderInCategory="100"
     />
 
     <item
         android:id="@+id/action_activate_all"
         android:title="@string/activate_all"
-        app:showAsAction="never"
+        android:orderInCategory="100"
     />
 
     <item
         android:id="@+id/action_deactivate_all"
         android:title="@string/deactivate_all"
-        app:showAsAction="never"
+        android:orderInCategory="100"
     />
 
     <item
         android:id="@+id/action_settings"
         android:title="@string/settings"
-        android:icon="@android:drawable/ic_menu_preferences"
-        app:showAsAction="never"
+        android:orderInCategory="100"
+    />
+
+    <item
+        android:id="@+id/action_store_selector"
+        android:title="@string/select_store"
+        android:icon="@android:drawable/ic_menu_mapmode"
+        android:orderInCategory="200"
+        app:showAsAction="ifRoom"
+    />
+
+    <item
+        android:id="@+id/action_select_store"
+        android:title="◉"
+        android:orderInCategory="200"
+        app:showAsAction="always|withText"
     />
 
 </menu>
