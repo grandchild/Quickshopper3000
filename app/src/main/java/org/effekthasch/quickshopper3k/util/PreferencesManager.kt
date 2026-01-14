@@ -25,6 +25,26 @@ class PreferencesManager(context: Context) {
             }
         }
 
+    var selectedShopStoreIds: Set<Long>
+        get() {
+            val idsString = prefs.getString(KEY_SELECTED_SHOP_STORE_IDS, null)
+            return if (idsString.isNullOrEmpty()) {
+                emptySet()
+            } else {
+                idsString.split(",").mapNotNull { it.toLongOrNull() }.toSet()
+            }
+        }
+        set(value) {
+            prefs.edit().apply {
+                if (value.isEmpty()) {
+                    remove(KEY_SELECTED_SHOP_STORE_IDS)
+                } else {
+                    putString(KEY_SELECTED_SHOP_STORE_IDS, value.joinToString(","))
+                }
+                apply()
+            }
+        }
+
     var isLeftHanded: Boolean
         get() = prefs.getBoolean(KEY_IS_LEFT_HANDED, false)
         set(value) {
@@ -52,6 +72,7 @@ class PreferencesManager(context: Context) {
 
     companion object {
         private const val KEY_CURRENT_STORE_ID = "current_store_id"
+        private const val KEY_SELECTED_SHOP_STORE_IDS = "selected_shop_store_ids"
         private const val KEY_IS_LEFT_HANDED = "is_left_handed"
         private const val KEY_TEXT_SCALE = "text_scale"
         private const val KEY_SHOW_DONE_ITEMS = "show_done_items"

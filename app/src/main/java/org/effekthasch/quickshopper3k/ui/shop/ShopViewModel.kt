@@ -33,6 +33,7 @@ class ShopViewModel(private val repository: ShoppingRepository) : ViewModel() {
             val query = _searchQuery.value ?: ""
             val showDone = _showDoneItems.value ?: false
             val isDragging = _isDragging.value ?: false
+            val currentStore = _currentStoreId.value
 
             value = allItems.filter { storeItem ->
                 val matchesSearch = if (query.isBlank()) {
@@ -47,7 +48,13 @@ class ShopViewModel(private val repository: ShoppingRepository) : ViewModel() {
                     storeItem.item.state != ItemState.DEACTIVATED
                 }
 
-                matchesSearch && matchesVisibility
+                val matchesAvailability = if (currentStore == null || currentStore == 0L) {
+                    true
+                } else {
+                    storeItem.isAvailable
+                }
+
+                matchesSearch && matchesVisibility && matchesAvailability
             }
         }
 
@@ -55,6 +62,7 @@ class ShopViewModel(private val repository: ShoppingRepository) : ViewModel() {
         addSource(_searchQuery) { update() }
         addSource(_showDoneItems) { update() }
         addSource(_isDragging) { update() }
+        addSource(_currentStoreId.asLiveData()) { update() }
     }
 
     val currentStoreId: LiveData<Long?> = _currentStoreId.asLiveData()

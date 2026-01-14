@@ -5,6 +5,8 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import androidx.core.content.ContextCompat.getSystemService
 import androidx.lifecycle.ViewModelProvider
 import com.google.android.material.snackbar.Snackbar
@@ -16,6 +18,7 @@ import org.effekthasch.quickshopper3k.databinding.FragmentShopBinding
 import org.effekthasch.quickshopper3k.domain.model.ItemState
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
 import org.effekthasch.quickshopper3k.ui.FabController
+import org.effekthasch.quickshopper3k.util.PreferencesManager
 
 class ShopFragment :
     org.effekthasch.quickshopper3k.ui.common.BaseListFragment<StoreItem>(),
@@ -25,6 +28,7 @@ class ShopFragment :
     private val binding get() = _binding!!
 
     private lateinit var viewModel: ShopViewModel
+    private lateinit var prefsManager: PreferencesManager
 
     private var currentStoreName: String? = null
 
@@ -129,12 +133,17 @@ class ShopFragment :
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        prefsManager = PreferencesManager(requireContext())
+
         val database = AppDatabase.getDatabase(requireContext())
         val repository = ShoppingRepository(database)
         viewModel = ViewModelProvider(
             this,
             ShopViewModelFactory(repository)
         )[ShopViewModel::class.java]
+
+        val initialStoreId = prefsManager.selectedShopStoreIds.firstOrNull() ?: 0L
+        viewModel.setCurrentStore(initialStoreId)
 
         setupRecyclerView(binding.itemsRecyclerView)
         setupBottomBar(binding.searchContainer, binding.searchInput)
@@ -187,6 +196,7 @@ class ShopFragment :
         }
 
         viewModel.stores.observe(viewLifecycleOwner) { stores ->
+            updateStoreSpinner(stores)
         }
 
         viewModel.currentStoreId.observe(viewLifecycleOwner) { storeId ->
@@ -196,6 +206,50 @@ class ShopFragment :
         }
 
         viewModel.showDoneItems.observe(viewLifecycleOwner) {
+        }
+    }
+
+    private fun updateStoreSpinner(stores: List<org.effekthasch.quickshopper3k.domain.model.Store>) {
+        binding.storeHeader.visibility = View.VISIBLE
+
+        val allStores = listOf(
+            org.effekthasch.quickshopper3k.domain.model.Store(0L, "All items", false)
+        ) + stores
+
+        val storeNames = allStores.map { store ->
+            if (store.id == 0L) {
+                store.name
+            } else {
+                val prefix = if (store.specialtyStore) "★ " else ""
+                prefix + store.name
+            }
+        }
+
+        val adapter = ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_spinner_item,
+            storeNames
+        )
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        binding.storeSelector.adapter = adapter
+
+        val currentStoreId = viewModel.currentStoreId.value
+        val currentIndex = allStores.indexOfFirst { it.id == currentStoreId }
+        if (currentIndex >= 0) {
+            binding.storeSelector.setSelection(currentIndex)
+        }
+
+        binding.storeSelector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val selectedStore = allStores[position]
+                if (selectedStore.id != viewModel.currentStoreId.value) {
+                    viewModel.setCurrentStore(selectedStore.id)
+                    prefsManager.selectedShopStoreIds = setOf(selectedStore.id)
+                }
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) {
+            }
         }
     }
 
