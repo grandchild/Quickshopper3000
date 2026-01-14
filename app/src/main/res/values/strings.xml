@@ -20,6 +20,8 @@
     <string name="edit">Edit</string>
     <string name="add">Add</string>
     <string name="import_items">Import items</string>
+    <string name="activate_all">Activate all</string>
+    <string name="deactivate_all">Deactivate all</string>
 
     <!-- Item states -->
     <string name="state_done">Done</string>
@@ -73,6 +75,8 @@
     <string name="item_deleted">Item deleted</string>
     <string name="items_imported">%1$d items imported</string>
     <string name="importing_items">Importing items…</string>
+    <string name="all_items_activated">All items activated</string>
+    <string name="all_items_deactivated">All items marked as done</string>
     <string name="store_added">Store added</string>
     <string name="store_updated">Store updated</string>
     <string name="store_deleted">Store deleted</string>

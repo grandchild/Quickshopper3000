@@ -138,6 +138,7 @@ class MainActivity : AppCompatActivity() {
                 binding.fab.contentDescription = getString(R.string.search)
             }
         }
+
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -151,6 +152,8 @@ class MainActivity : AppCompatActivity() {
         menu.findItem(R.id.action_store_selector)?.isVisible = currentPage == 0
         menu.findItem(R.id.action_delete_store)?.isVisible = currentPage == 0
         menu.findItem(R.id.action_import_items)?.isVisible = currentPage == 1
+        menu.findItem(R.id.action_activate_all)?.isVisible = currentPage == 1
+        menu.findItem(R.id.action_deactivate_all)?.isVisible = currentPage == 1
         return super.onPrepareOptionsMenu(menu)
     }
 

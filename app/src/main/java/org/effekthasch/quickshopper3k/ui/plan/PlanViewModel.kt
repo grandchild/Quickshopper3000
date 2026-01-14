@@ -101,4 +101,18 @@ class PlanViewModel(private val repository: ShoppingRepository) : ViewModel() {
             onResult(result)
         }
     }
+
+    fun activateAll(onResult: (Result<Unit>) -> Unit) {
+        viewModelScope.launch {
+            val result = repository.setAllItemsToState(ItemState.ACTIVATED)
+            onResult(result)
+        }
+    }
+
+    fun deactivateAll(onResult: (Result<Unit>) -> Unit) {
+        viewModelScope.launch {
+            val result = repository.setAllItemsToState(ItemState.DEACTIVATED)
+            onResult(result)
+        }
+    }
 }

@@ -216,4 +216,13 @@ class ShoppingRepository(private val database: AppDatabase) {
             Result.failure(e)
         }
     }
+
+    suspend fun setAllItemsToState(state: ItemState): Result<Unit> {
+        return try {
+            itemDao.setAllItemsToState(state.toString())
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

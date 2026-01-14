@@ -40,6 +40,18 @@
     />
 
     <item
+        android:id="@+id/action_activate_all"
+        android:title="@string/activate_all"
+        app:showAsAction="never"
+    />
+
+    <item
+        android:id="@+id/action_deactivate_all"
+        android:title="@string/deactivate_all"
+        app:showAsAction="never"
+    />
+
+    <item
         android:id="@+id/action_settings"
         android:title="@string/settings"
         android:icon="@android:drawable/ic_menu_preferences"

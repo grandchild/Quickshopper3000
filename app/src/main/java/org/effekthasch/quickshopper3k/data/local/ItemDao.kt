@@ -80,6 +80,24 @@ interface ItemDao {
     suspend fun bulkInsertItems(items: List<ItemEntity>): List<Long> {
         return insertItems(items)
     }
+
+    @Query("DELETE FROM item_states")
+    suspend fun deleteAllItemStates()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertItemStates(states: List<ItemStateEntity>)
+
+    @Transaction
+    suspend fun setAllItemsToState(state: String) {
+        if (state == "ACTIVATED") {
+            deleteAllItemStates()
+        } else {
+            val allItems = getAllItems()
+            val states = allItems.map { ItemStateEntity(it.id, state) }
+            deleteAllItemStates()
+            insertItemStates(states)
+        }
+    }
 }
 
 data class ItemWithState(
