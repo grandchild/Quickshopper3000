@@ -17,10 +17,7 @@
             android:id="@+id/action_planFragment_to_shopFragment"
             app:destination="@id/shopFragment"
         />
-        <action
-            android:id="@+id/action_planFragment_to_storeEditFragment"
-            app:destination="@id/storeEditFragment"
-        />
+
     </fragment>
 
     <fragment
@@ -33,19 +30,9 @@
             android:id="@+id/action_shopFragment_to_planFragment"
             app:destination="@id/planFragment"
         />
-        <action
-            android:id="@+id/action_shopFragment_to_storeEditFragment"
-            app:destination="@id/storeEditFragment"
-        />
+
     </fragment>
 
-    <fragment
-        android:id="@+id/storeEditFragment"
-        android:name="org.effekthasch.quickshopper3k.ui.store.StoreEditFragment"
-        android:label="@string/store_edit_mode_title"
-        tools:layout="@layout/fragment_store_edit"
-    >
-        <argument android:name="storeId" app:argType="long" />
-    </fragment>
+
 
 </navigation>

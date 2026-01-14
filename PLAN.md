@@ -72,10 +72,9 @@ com.quickshopper3k/
 │   └── model/ (Item, ItemState, Store)
 ├── ui/
 │   ├── MainActivity.kt
-│   ├── stores/ (Fragment, ViewModel, Adapter - stores list page)
+│   ├── stores/ (Fragment, ViewModel, Adapter - stores management page)
 │   ├── plan/ (Fragment, ViewModel, Adapter)
-│   ├── shop/ (Fragment, ViewModel, Adapter)
-│   └── store/ (Fragment, ViewModel, Adapter - store edit page)
+│   └── shop/ (Fragment, ViewModel, Adapter)
 └── util/
 ```
 
@@ -112,15 +111,15 @@ data class Store(
 - **MainActivity** hosts ViewPager2 with Stores, Plan, and Shop fragments (swipeable)
 - **BottomAppBar** fixed at bottom, content updates based on current page
 - **BottomAppBar** hides when inline add-item or search modes are active
-- **Store Edit** accessed via Navigation Component as separate destination (TODO)
 - Swipe left/right on content area switches between Stores/Plan/Shop modes
 - BottomAppBar observes ViewPager position to update menus/title
+- **Note**: There is NO separate "Store Edit" destination - all store management happens in Stores mode (page 0)
 
 ### Screen Layouts
 
 #### Stores Mode (ViewPager Page 0)
+This is the ONLY page for managing stores and per-store item configuration.
 - **BottomAppBar**: Store selector (dropdown icon), FAB to add store, delete store option
-- **Store header**: Clickable store name at top of item list for editing
 - **RecyclerView**: All items for selected store with drag handles
 - **FAB**: Add store (anchored to BottomAppBar)
 - **Empty state**: "No stores" text when no store selected, no items shown
@@ -147,12 +146,6 @@ data class Store(
 - **FAB**: Search (expands to search input, anchored to BottomAppBar)
 - **Item swipe gestures**: per DESIGN.md state transitions
 - **Horizontal swipe**: Switch to Plan mode
-
-#### Store Edit Mode (Separate Navigation Destination)
-- **BottomAppBar**: Store name, back, delete store option
-- **RecyclerView**: Drag-and-drop reordering enabled
-- **FAB**: Add new store (anchored to BottomAppBar)
-- **Item row**: Drag handle, name, availability checkbox
 
 ### Theming
 - Material Design Components
@@ -312,12 +305,13 @@ Keep Room entities and DAOs, shrink everything else aggressively.
 
 ## MVP Scope
 Version 1.0 includes:
-- All three modes functional
+- All three modes functional (Stores, Plan, Shop - all in ViewPager)
 - Local database persistence
 - Handedness setting
 - Theme support
 - Text scale options
 - NO sync/network (deferred to v2.0)
+- NO separate Store Edit navigation destination (all store management in Stores mode page 0)
 
 ## Implementation Order
 1. ✅ Database schema + DAOs
@@ -326,14 +320,15 @@ Version 1.0 includes:
 4. ✅ Plan fragment (core functionality)
 5. ✅ Shop fragment + store selection
 6. ✅ ViewPager/BottomAppBar integration
-7. ✅ Stores page (reorder items, set availability per store)
+7. ✅ Stores page (reorder items, set availability per store via swipes)
 8. ✅ Store selector via menu dialog (Stores mode)
 9. ✅ Swipe gestures for availability toggle (Stores mode)
 10. ✅ Specialty store flag in database and UI
 11. ✅ Import items feature (bulk add from text)
-12. ⏳ Settings + preferences
-13. ⏳ Polish + accessibility
-14. ⏳ Testing
+12. ✅ Bulk state changes (activate all / deactivate all in Plan mode)
+13. ⏳ Settings + preferences
+14. ⏳ Polish + accessibility
+15. ⏳ Testing
 
 ## Implementation Details to Decide
 - Drag animation style
