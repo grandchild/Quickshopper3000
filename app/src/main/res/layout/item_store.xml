@@ -5,12 +5,12 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:minHeight="64dp"
+    android:minHeight="0dp"
     android:background="?attr/selectableItemBackground"
     android:paddingStart="16dp"
     android:paddingEnd="8dp"
-    android:paddingTop="12dp"
-    android:paddingBottom="12dp"
+    android:paddingTop="2dp"
+    android:paddingBottom="2dp"
 >
 
     <TextView
@@ -19,9 +19,12 @@
         android:layout_height="wrap_content"
         android:textSize="16sp"
         android:textColor="?android:attr/textColorPrimary"
+        android:maxLines="1"
+        android:ellipsize="end"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toStartOf="@+id/specialty_label"
         app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
         tools:text="Supermarket"
     />
 
@@ -36,8 +39,8 @@
         android:paddingEnd="8dp"
         android:paddingTop="2dp"
         android:paddingBottom="2dp"
-        android:layout_marginStart="8dp"
-        android:layout_marginEnd="8dp"
+        android:layout_marginStart="4dp"
+        android:layout_marginEnd="4dp"
         android:background="@android:color/darker_gray"
         android:visibility="gone"
         app:layout_constraintEnd_toStartOf="@+id/edit_button"
