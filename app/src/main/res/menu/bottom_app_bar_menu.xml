@@ -5,8 +5,8 @@
 >
 
     <item
-        android:id="@+id/action_toggle_done_items"
-        android:title="@string/toggle_done_items"
+        android:id="@+id/action_flush_recently_done"
+        android:title="@string/flush_recently_done"
         android:orderInCategory="100"
     />
 
@@ -25,6 +25,18 @@
     <item
         android:id="@+id/action_import_items"
         android:title="@string/import_items"
+        android:orderInCategory="100"
+    />
+
+    <item
+        android:id="@+id/action_import_backup"
+        android:title="@string/import_backup"
+        android:orderInCategory="100"
+    />
+
+    <item
+        android:id="@+id/action_export_backup"
+        android:title="@string/export_backup"
         android:orderInCategory="100"
     />
 

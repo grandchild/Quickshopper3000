@@ -1,4 +1,4 @@
-package org.effekthasch.quickshopper3k.ui.shop
+package org.effekthasch.quickshopper3k.ui.main
 
 import android.view.LayoutInflater
 import android.view.View
@@ -6,29 +6,30 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import org.effekthasch.quickshopper3k.R
 import org.effekthasch.quickshopper3k.databinding.ItemShoppingItemBinding
+import org.effekthasch.quickshopper3k.domain.model.ItemState
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
 import org.effekthasch.quickshopper3k.ui.common.BaseDragAdapter
 
-class StoreItemsAdapter(
+class MainItemsAdapter(
     private val onItemClick: () -> Boolean,
     private val onItemLongClick: (StoreItem) -> Unit,
     private val onStartDrag: (RecyclerView.ViewHolder) -> Unit
-) : BaseDragAdapter<StoreItem, StoreItemsAdapter.StoreItemViewHolder>() {
+) : BaseDragAdapter<StoreItem, MainItemsAdapter.MainItemViewHolder>() {
 
     private val selectedPositions = mutableSetOf<Int>()
 
     override fun getStableId(item: StoreItem): Long = item.item.id
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): StoreItemViewHolder {
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MainItemViewHolder {
         val binding = ItemShoppingItemBinding.inflate(
             LayoutInflater.from(parent.context),
             parent,
             false
         )
-        return StoreItemViewHolder(binding)
+        return MainItemViewHolder(binding)
     }
 
-    override fun onBindViewHolder(holder: StoreItemViewHolder, position: Int) {
+    override fun onBindViewHolder(holder: MainItemViewHolder, position: Int) {
         holder.bind(backingItems[position], position)
     }
 
@@ -137,7 +138,7 @@ class StoreItemsAdapter(
         selectedPositions.addAll(newPositions)
     }
 
-    inner class StoreItemViewHolder(
+    inner class MainItemViewHolder(
         private val binding: ItemShoppingItemBinding
     ) : RecyclerView.ViewHolder(binding.root) {
 
@@ -154,7 +155,7 @@ class StoreItemsAdapter(
             binding.root.setOnLongClickListener {
                 val position = bindingAdapterPosition
                 if (position != RecyclerView.NO_POSITION) {
-                    toggleSelection(position)
+                    onItemLongClick(backingItems[position])
                     true
                 } else {
                     false
@@ -169,12 +170,23 @@ class StoreItemsAdapter(
         fun bind(storeItem: StoreItem, position: Int) {
             binding.itemNameText.text = storeItem.item.name
 
-            binding.itemStateIcon.visibility = View.GONE
+            when (storeItem.item.state) {
+                ItemState.ACTIVATED -> {
+                    binding.itemStateIcon.visibility = View.GONE
+                    binding.itemNameText.alpha = 1.0f
+                }
 
-            if (storeItem.isAvailable) {
-                binding.itemNameText.alpha = 1.0f
-            } else {
-                binding.itemNameText.alpha = 0.5f
+                ItemState.DEACTIVATED -> {
+                    binding.itemStateIcon.visibility = View.VISIBLE
+                    binding.itemStateIcon.setImageResource(R.drawable.ic_state_done)
+                    binding.itemNameText.alpha = 0.5f
+                }
+
+                ItemState.POSTPONED -> {
+                    binding.itemStateIcon.visibility = View.VISIBLE
+                    binding.itemStateIcon.setImageResource(R.drawable.ic_state_na)
+                    binding.itemNameText.alpha = 0.7f
+                }
             }
 
             if (isSelected(position)) {

@@ -3,6 +3,32 @@ package org.effekthasch.quickshopper3k.util
 import android.content.Context
 import android.content.SharedPreferences
 
+enum class DoneVisibilityMode {
+    NONE,
+    RECENT,
+    ALL;
+
+    fun next(): DoneVisibilityMode = when (this) {
+        NONE -> RECENT
+        RECENT -> ALL
+        ALL -> NONE
+    }
+
+    fun label(): String = when (this) {
+        NONE -> "todo"
+        RECENT -> "recent"
+        ALL -> "all"
+    }
+
+    companion object {
+        fun fromString(value: String): DoneVisibilityMode = when (value.lowercase()) {
+            "recent" -> RECENT
+            "all" -> ALL
+            else -> NONE
+        }
+    }
+}
+
 class PreferencesManager(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences(
         "quickshopper3k_prefs",
@@ -64,10 +90,35 @@ class PreferencesManager(context: Context) {
             prefs.edit().putString(KEY_TEXT_SCALE, value.name.lowercase()).apply()
         }
 
-    var showDoneItems: Boolean
-        get() = prefs.getBoolean(KEY_SHOW_DONE_ITEMS, false)
+    var doneVisibilityMode: DoneVisibilityMode
+        get() {
+            val value = prefs.getString(KEY_DONE_VISIBILITY_MODE, "none") ?: "none"
+            return DoneVisibilityMode.fromString(value)
+        }
         set(value) {
-            prefs.edit().putBoolean(KEY_SHOW_DONE_ITEMS, value).apply()
+            prefs.edit().putString(KEY_DONE_VISIBILITY_MODE, value.name.lowercase()).apply()
+        }
+
+    var recentDoneMinutes: Int
+        get() = prefs.getInt(KEY_RECENT_DONE_MINUTES, 60)
+        set(value) {
+            prefs.edit().putInt(KEY_RECENT_DONE_MINUTES, value).apply()
+        }
+
+    var flushRecentlyDoneAt: Long?
+        get() {
+            val value = prefs.getLong(KEY_FLUSH_RECENTLY_DONE_AT, -1L)
+            return if (value == -1L) null else value
+        }
+        set(value) {
+            prefs.edit().apply {
+                if (value == null) {
+                    remove(KEY_FLUSH_RECENTLY_DONE_AT)
+                } else {
+                    putLong(KEY_FLUSH_RECENTLY_DONE_AT, value)
+                }
+                apply()
+            }
         }
 
     companion object {
@@ -75,7 +126,9 @@ class PreferencesManager(context: Context) {
         private const val KEY_SELECTED_SHOP_STORE_IDS = "selected_shop_store_ids"
         private const val KEY_IS_LEFT_HANDED = "is_left_handed"
         private const val KEY_TEXT_SCALE = "text_scale"
-        private const val KEY_SHOW_DONE_ITEMS = "show_done_items"
+        private const val KEY_DONE_VISIBILITY_MODE = "done_visibility_mode"
+        private const val KEY_RECENT_DONE_MINUTES = "recent_done_minutes"
+        private const val KEY_FLUSH_RECENTLY_DONE_AT = "flush_recently_done_at"
     }
 }
 

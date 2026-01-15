@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.Flow
 interface ItemDao {
     @Query(
         """
-        SELECT i.*, COALESCE(s.state, 'ACTIVATED') as state, o.sort_order
+        SELECT i.*, COALESCE(s.state, 'ACTIVATED') as state, s.state_changed_at, o.sort_order
         FROM items i
         LEFT JOIN item_states s ON i.id = s.item_id
         LEFT JOIN store_item_order o ON i.id = o.item_id AND o.store_id = 0
@@ -21,7 +21,7 @@ interface ItemDao {
 
     @Query(
         """
-        SELECT i.*, COALESCE(s.state, 'ACTIVATED') as state,
+        SELECT i.*, COALESCE(s.state, 'ACTIVATED') as state, s.state_changed_at,
                COALESCE(shop_o.sort_order, default_o.sort_order) as sort_order,
                CASE WHEN u.item_id IS NULL THEN 1 ELSE 0 END as is_available
         FROM items i
@@ -69,10 +69,11 @@ interface ItemDao {
 
     @Transaction
     suspend fun setItemState(itemId: Long, state: String) {
+        val now = System.currentTimeMillis()
         if (state == "ACTIVATED") {
             deleteItemState(itemId)
         } else {
-            insertOrUpdateItemState(ItemStateEntity(itemId, state))
+            insertOrUpdateItemState(ItemStateEntity(itemId, state, now))
         }
     }
 
@@ -89,11 +90,12 @@ interface ItemDao {
 
     @Transaction
     suspend fun setAllItemsToState(state: String) {
+        val now = System.currentTimeMillis()
         if (state == "ACTIVATED") {
             deleteAllItemStates()
         } else {
             val allItems = getAllItems()
-            val states = allItems.map { ItemStateEntity(it.id, state) }
+            val states = allItems.map { ItemStateEntity(it.id, state, now) }
             deleteAllItemStates()
             insertItemStates(states)
         }
@@ -105,6 +107,7 @@ data class ItemWithState(
     val name: String,
     val created_at: Long,
     val state: String,
+    val state_changed_at: Long?,
     val sort_order: Int?
 )
 
@@ -113,6 +116,7 @@ data class ItemWithStoreInfo(
     val name: String,
     val created_at: Long,
     val state: String,
+    val state_changed_at: Long?,
     val sort_order: Int?,
     val is_available: Int
 )

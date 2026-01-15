@@ -19,7 +19,7 @@ import org.effekthasch.quickshopper3k.databinding.FragmentStoresBinding
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
 import org.effekthasch.quickshopper3k.ui.common.BaseDragAdapter
 import org.effekthasch.quickshopper3k.ui.common.BaseListFragment
-import org.effekthasch.quickshopper3k.ui.shop.StoreItemsAdapter
+
 import org.effekthasch.quickshopper3k.util.PreferencesManager
 
 class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopper3k.ui.FabController {
@@ -28,7 +28,7 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
 
     private lateinit var viewModel: StoresViewModel
     private lateinit var prefsManager: PreferencesManager
-    private lateinit var storesAdapter: StoreItemsAdapter
+    private lateinit var storesAdapter: StoresItemsAdapter
     private lateinit var itemTouchHelper: androidx.recyclerview.widget.ItemTouchHelper
 
     override fun onCreateView(
@@ -66,7 +66,7 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
     }
 
     override fun provideAdapter(): BaseDragAdapter<StoreItem, *> {
-        storesAdapter = StoreItemsAdapter(
+        storesAdapter = StoresItemsAdapter(
             onItemClick = { true },
             onItemLongClick = {},
             onStartDrag = { holder ->

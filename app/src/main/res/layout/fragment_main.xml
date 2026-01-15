@@ -5,10 +5,8 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".ui.shop.ShopFragment"
+    tools:context=".ui.main.MainFragment"
 >
-
-
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/itemsRecyclerView"
@@ -56,6 +54,18 @@
             android:inputType="text"
             android:background="@android:color/transparent"
             android:textSize="16sp"
+        />
+
+        <ImageButton
+            android:id="@+id/addItemButton"
+            android:layout_width="48dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_add_item"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/add_item"
+            android:layout_gravity="center_vertical"
+            android:scaleType="center"
+            android:visibility="gone"
         />
 
     </LinearLayout>

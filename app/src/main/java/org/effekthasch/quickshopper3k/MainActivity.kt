@@ -12,6 +12,7 @@ import com.google.android.material.bottomappbar.BottomAppBar
 import org.effekthasch.quickshopper3k.databinding.ActivityMainBinding
 import org.effekthasch.quickshopper3k.ui.FabController
 import org.effekthasch.quickshopper3k.ui.MainPagerAdapter
+import org.effekthasch.quickshopper3k.util.DoneVisibilityMode
 import org.effekthasch.quickshopper3k.util.PreferencesManager
 import kotlin.math.abs
 
@@ -34,6 +35,7 @@ class MainActivity : AppCompatActivity() {
         setupFab()
         setupOverflowButton()
         setupStoreSelectorButton()
+        setupDoneVisibilityButton()
         applyHandednessSettings()
         updateLockscreenFlags(currentPage)
     }
@@ -78,14 +80,17 @@ class MainActivity : AppCompatActivity() {
                 e.printStackTrace()
             }
 
-            popup.menu.findItem(R.id.action_toggle_done_items)?.isVisible = currentPage == 2
+
             popup.menu.findItem(R.id.action_store_selector)?.isVisible = false
             popup.menu.findItem(R.id.action_select_store)?.isVisible = false
             popup.menu.findItem(R.id.action_edit_store)?.isVisible = currentPage == 0
             popup.menu.findItem(R.id.action_delete_store)?.isVisible = currentPage == 0
             popup.menu.findItem(R.id.action_import_items)?.isVisible = currentPage == 1
+            popup.menu.findItem(R.id.action_import_backup)?.isVisible = currentPage == 1
+            popup.menu.findItem(R.id.action_export_backup)?.isVisible = currentPage == 1
             popup.menu.findItem(R.id.action_activate_all)?.isVisible = currentPage == 1
             popup.menu.findItem(R.id.action_deactivate_all)?.isVisible = currentPage == 1
+            popup.menu.findItem(R.id.action_flush_recently_done)?.isVisible = currentPage == 1
 
             popup.setOnMenuItemClickListener { item ->
                 onOptionsItemSelected(item)
@@ -95,10 +100,29 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupDoneVisibilityButton() {
+        binding.doneVisibilityButton.setOnClickListener {
+            val mainFragment = getCurrentFragment() as? org.effekthasch.quickshopper3k.ui.main.MainFragment
+            mainFragment?.cycleDoneVisibilityMode()
+            updateDoneVisibilityButton()
+        }
+    }
+
+    fun updateDoneVisibilityButton() {
+        if (currentPage == 1) {
+            binding.doneVisibilityButton.visibility = android.view.View.VISIBLE
+            val mainFragment = getCurrentFragment() as? org.effekthasch.quickshopper3k.ui.main.MainFragment
+            val mode = mainFragment?.getDoneVisibilityMode() ?: DoneVisibilityMode.NONE
+            binding.doneVisibilityButton.text = mode.label()
+        } else {
+            binding.doneVisibilityButton.visibility = android.view.View.GONE
+        }
+    }
+
     private fun setupStoreSelectorButton() {
         binding.storeSelectorButton.setOnClickListener {
             val fragment = getCurrentFragment()
-            if (fragment is org.effekthasch.quickshopper3k.ui.shop.ShopFragment) {
+            if (fragment is org.effekthasch.quickshopper3k.ui.main.MainFragment) {
                 fragment.showStoreSelectionDropdown(null)
             } else if (fragment is org.effekthasch.quickshopper3k.ui.stores.StoresFragment) {
                 fragment.showStoreSelectionDialog()
@@ -114,12 +138,11 @@ class MainActivity : AppCompatActivity() {
                 binding.storeSelectorButton.text = storesFragment?.getCurrentStoreName() ?: "◉"
             }
 
-            2 -> {
+            1 -> {
                 binding.storeSelectorButton.visibility = android.view.View.VISIBLE
-                val shopFragment = getCurrentFragment() as? org.effekthasch.quickshopper3k.ui.shop.ShopFragment
-                binding.storeSelectorButton.text = shopFragment?.getStoreMenuTitle() ?: "◉"
+                val mainFragment = getCurrentFragment() as? org.effekthasch.quickshopper3k.ui.main.MainFragment
+                binding.storeSelectorButton.text = mainFragment?.getStoreMenuTitle() ?: "◉"
             }
-
 
             else -> {
                 binding.storeSelectorButton.visibility = android.view.View.GONE
@@ -144,7 +167,7 @@ class MainActivity : AppCompatActivity() {
                     if (diffX > 0 && currentPage > 0) {
                         binding.viewPager.currentItem = currentPage - 1
                         return true
-                    } else if (diffX < 0 && currentPage < 2) {
+                    } else if (diffX < 0 && currentPage < 1) {
                         binding.viewPager.currentItem = currentPage + 1
                         return true
                     }
@@ -169,6 +192,7 @@ class MainActivity : AppCompatActivity() {
                 updateBottomAppBarForPage(position)
                 updateFabForPage(position)
                 updateStoreSelectorButton()
+                updateDoneVisibilityButton()
                 updateLockscreenFlags(position)
                 if (position != 0) {
                     updateSelectionCounter(0)
@@ -179,7 +203,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateLockscreenFlags(position: Int) {
-        if (position == 2) {
+        if (position == 1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
         } else {
@@ -196,8 +220,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getCurrentFragment(): FabController? {
-        val adapter = binding.viewPager.adapter as? MainPagerAdapter ?: return null
-        val fragment = supportFragmentManager.findFragmentByTag("f${currentPage}") as? Fragment
+        binding.viewPager.adapter ?: return null
+        val fragment = supportFragmentManager.findFragmentByTag("f${currentPage}")
         return fragment as? FabController
     }
 
@@ -212,8 +236,8 @@ class MainActivity : AppCompatActivity() {
         binding.fab.layoutParams = layoutParams
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private fun updateBottomAppBarForPage(position: Int) {
-        // Title removed for space
     }
 
     private fun updateFabForPage(position: Int) {
@@ -224,21 +248,10 @@ class MainActivity : AppCompatActivity() {
             }
 
             1 -> {
-                binding.fab.setImageResource(android.R.drawable.ic_input_add)
-                binding.fab.contentDescription = getString(R.string.add_item)
-            }
-
-            2 -> {
                 binding.fab.setImageResource(android.R.drawable.ic_menu_search)
                 binding.fab.contentDescription = getString(R.string.search)
             }
-
-            3 -> {
-                binding.fab.setImageResource(android.R.drawable.ic_input_add)
-                binding.fab.contentDescription = getString(R.string.add_store)
-            }
         }
-
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {

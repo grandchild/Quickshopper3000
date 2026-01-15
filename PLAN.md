@@ -11,7 +11,7 @@
 ### Architecture
 - **Pattern**: MVVM (Model-View-ViewModel)
 - **DI**: Manual dependency injection (avoid Hilt/Dagger overhead)
-- **Navigation**: Single Activity with ViewPager2 (Plan/Shop) + Navigation Component (Store Edit)
+- **Navigation**: Single Activity with ViewPager2 (Stores/Main) - two pages only
 
 ### Key Dependencies
 - **UI**: Material Design Components, RecyclerView, ViewBinding, ViewPager2
@@ -36,7 +36,8 @@ data class ItemEntity(
 @Entity(tableName = "item_states", primaryKeys = ["item_id"])
 data class ItemStateEntity(
     @ColumnInfo(name = "item_id") val itemId: Long,
-    val state: String
+    val state: String,
+    @ColumnInfo(name = "state_changed_at") val stateChangedAt: Long? = null
 )
 
 @Entity(tableName = "stores")
@@ -73,8 +74,7 @@ com.quickshopper3k/
 ├── ui/
 │   ├── MainActivity.kt
 │   ├── stores/ (Fragment, ViewModel, Adapter - stores management page)
-│   ├── plan/ (Fragment, ViewModel, Adapter)
-│   └── shop/ (Fragment, ViewModel, Adapter)
+│   └── main/ (Fragment, ViewModel, Adapter - unified list page)
 └── util/
 ```
 
@@ -108,10 +108,9 @@ data class Store(
 ## UI Implementation
 
 ### Navigation
-- **MainActivity** hosts ViewPager2 with Stores, Plan, and Shop fragments (swipeable)
+- **MainActivity** hosts ViewPager2 with Stores and Main fragments (2 pages, swipeable)
 - **BottomAppBar** fixed at bottom, content updates based on current page
-- **BottomAppBar** hides when inline add-item or search modes are active
-- Swipe left/right on content area switches between Stores/Plan/Shop modes
+- Swipe left/right on content area switches between Stores/Main modes
 - BottomAppBar observes ViewPager position to update menus/title
 - **Note**: There is NO separate "Store Edit" destination - all store management happens in Stores mode (page 0)
 
@@ -130,23 +129,26 @@ This is the ONLY page for managing stores and per-store item configuration.
 - **Add store dialog**: Text input for name + checkbox for "Specialty store"
 - **Store selection**: Via menu icon, shows AlertDialog with single-choice list
 - **Delete store**: Via overflow menu, clears current selection
-- **Horizontal swipe**: Switch to Plan mode
+- **Horizontal swipe**: Switch to Main mode
 
-#### Plan Mode (ViewPager Page 1)
-- **BottomAppBar**: Title, settings menu (right side)
-- **RecyclerView**: Items sorted by state (activated, postponed, deactivated), then by ID
-- **FAB**: Add item (anchored to BottomAppBar)
+#### Main Mode (ViewPager Page 1)
+- **BottomAppBar**: Store selector (dropdown), done-items visibility button (tristate), settings menu (right side)
+- **Done visibility button**: Cycles through three states on tap:
+  - NONE: Hide all done items (default)
+  - RECENT: Show items marked done within last X minutes (X=20 default)
+  - ALL: Show all done items
+  - Icon changes per state for visual clarity
+- **FAB**: Search icon (magnifier), anchored to BottomAppBar
+  - Tapping FAB expands search bar above BottomAppBar (same as old Shop behavior)
+  - Search bar filters list in real-time as user types
+  - Small "+" icon appears on right end of search bar when search term doesn't exactly match an existing item name
+  - When search yields no results, keyboard action button becomes checkmark/enter to add item directly
+  - Tapping "+" or pressing keyboard action adds search term as new activated item, then clears search
+- **RecyclerView**: Filtered & sorted by current store; sorted by state (activated, postponed, deactivated), then by store order, then by ID
 - **Item swipe gestures**: per DESIGN.md state transitions
 - **Long press**: Edit item dialog
-- **Horizontal swipe**: Switch left to Stores or right to Shop mode
-
-#### Shop Mode (ViewPager Page 2)
-- **BottomAppBar**: Store selector, toggle show-done-items, settings (right side)
-- **RecyclerView**: Filtered & sorted by current store
-- **FAB**: Search (expands to search input, anchored to BottomAppBar)
-- **Item swipe gestures**: per DESIGN.md state transitions
-- **Horizontal swipe**: Switch to Plan mode
-- **Lockscreen**: When phone is locked while on Shop page, app remains visible on lockscreen (setShowWhenLocked/setTurnScreenOn flags active only on page 2)
+- **Horizontal swipe**: Switch left to Stores mode
+- **Lockscreen**: Main page remains visible on lockscreen (setShowWhenLocked/setTurnScreenOn flags)
 
 ### Theming
 - Material Design Components
@@ -158,9 +160,10 @@ SharedPreferences boolean `is_left_handed`:
 - Controls FAB alignment on BottomAppBar (`fabAlignmentMode`: "end" vs "start")
 - Controls menu overflow position on BottomAppBar
 - Reverses item swipe directions
+- Controls search bar add-button position (left vs right end icon)
 
 ### Swipeable Implementation
-- **ViewPager2**: Horizontal page swipes between Plan/Shop modes
+- **ViewPager2**: Horizontal page swipes between Stores/Main modes
 - **ItemTouchHelper**: Item-level swipes with visual feedback (background color/icon)
 - No gesture conflicts: ViewPager handles horizontal content swipes, ItemTouchHelper handles individual item swipes
 
@@ -172,14 +175,10 @@ SharedPreferences boolean `is_left_handed`:
 - Fragment observes LiveData, updates RecyclerView adapter
 - User actions → ViewModel → Repository → Room → Flow emits
 
-### Plan Mode
-- Query items with JOIN on item_states
-- Sort by state, then ID
-
-### Shop Mode
-- Query items with LEFT JOIN on store_item_order and store_item_unavailability
-- Filter by current store (from preferences)
-- Sort: NULL order items first (by ID), then by sort_order, then by ID
+### Main Mode
+- Query items with JOIN on item_states, LEFT JOIN on store_item_order and store_item_unavailability
+- Filter by current store availability (from preferences)
+- Sort by state first, then: NULL order items (by ID), then by sort_order, then by ID
 - Search filters in-memory on query result
 
 ### Store Edit Mode
@@ -194,7 +193,9 @@ Store in default shared preferences:
 - `current_store_id`: Long? (null = no store selected)
 - `is_left_handed`: Boolean (default false)
 - `text_scale`: String ("compact"|"normal"|"large", default "normal")
-- `show_done_items`: Boolean (default false, shop mode only)
+- `show_done_items_mode`: String ("none"|"recent"|"all", default "none")
+- `recent_done_minutes`: Int (default 60, threshold for "recent" mode)
+- `flush_recently_done_at`: Long? (timestamp for "flush recently done" action; supersedes minutes threshold while fresher)
 
 ### Room Configuration
 ```kotlin
@@ -206,7 +207,8 @@ Store in default shared preferences:
         StoreItemUnavailabilityEntity::class,
         StoreItemOrderEntity::class
     ],
-    version = 1
+    version = 2,
+    autoMigrations = [AutoMigration(from = 1, to = 2)]
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun itemDao(): ItemDao
@@ -306,11 +308,13 @@ Keep Room entities and DAOs, shrink everything else aggressively.
 
 ## MVP Scope
 Version 1.0 includes:
-- All three modes functional (Stores, Plan, Shop - all in ViewPager)
+- Both modes functional (Stores, Main - in ViewPager)
+- FAB-triggered search bar with integrated add functionality
 - Local database persistence
 - Handedness setting
 - Theme support
 - Text scale options
+- Lockscreen visibility on Main page
 - NO sync/network (deferred to v2.0)
 - NO separate Store Edit navigation destination (all store management in Stores mode page 0)
 
@@ -328,15 +332,20 @@ Version 1.0 includes:
 12. ✅ Import items feature (bulk add from text)
 13. ✅ Bulk state changes (activate all / deactivate all in Plan mode)
 14. ✅ Lockscreen visibility for Shop mode
-15. ⏳ Settings + preferences
-16. ⏳ Polish + accessibility
-17. ⏳ Testing
+15. ⏳ Merge Plan+Shop into unified Main page
+16. ⏳ Add "+" functionality to search bar (add item when no exact match)
+17. ⏳ Settings + preferences
+18. ⏳ Polish + accessibility
+19. ⏳ Testing
 
 ## Implementation Details to Decide
 - Drag animation style
-- Search debounce timing
+- Search debounce timing (for filtering, ~150-200ms suggested)
+- Done visibility button icon set (distinct icons for none/recent/all states) - **POSTPONED**, using text labels ("todo"/"recent"/"all") for now
 - Store selector UI pattern (Spinner vs custom dropdown)
 - DiffUtil comparison strategy
 - Error event delivery mechanism (SingleLiveEvent vs Channel)
 - ViewPager page change animation duration
 - BottomAppBar content transition animation
+- Search bar "+" icon appearance threshold (exact match vs partial match)
+- Keyboard action button switch timing (when to show checkmark vs default action)

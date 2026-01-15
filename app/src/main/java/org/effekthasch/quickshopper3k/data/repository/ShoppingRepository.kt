@@ -25,7 +25,8 @@ class ShoppingRepository(private val database: AppDatabase) {
                     id = itemWithState.id,
                     name = itemWithState.name,
                     state = ItemState.fromString(itemWithState.state),
-                    createdAt = itemWithState.created_at
+                    createdAt = itemWithState.created_at,
+                    stateChangedAt = itemWithState.state_changed_at
                 )
             }
         }
@@ -39,7 +40,8 @@ class ShoppingRepository(private val database: AppDatabase) {
                         id = itemWithStoreInfo.id,
                         name = itemWithStoreInfo.name,
                         state = ItemState.fromString(itemWithStoreInfo.state),
-                        createdAt = itemWithStoreInfo.created_at
+                        createdAt = itemWithStoreInfo.created_at,
+                        stateChangedAt = itemWithStoreInfo.state_changed_at
                     ),
                     sortOrder = itemWithStoreInfo.sort_order,
                     isAvailable = itemWithStoreInfo.is_available == 1

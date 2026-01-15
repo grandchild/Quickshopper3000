@@ -4,5 +4,6 @@ data class Item(
     val id: Long,
     val name: String,
     val state: ItemState,
-    val createdAt: Long
+    val createdAt: Long,
+    val stateChangedAt: Long? = null
 )

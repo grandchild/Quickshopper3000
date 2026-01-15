@@ -16,7 +16,7 @@ import org.junit.runner.RunWith
 import org.junit.Assert.*
 
 @RunWith(AndroidJUnit4::class)
-class ShopViewModelFilteringTest {
+class MainFilteringTest {
     private lateinit var database: AppDatabase
     private lateinit var repository: ShoppingRepository
 
