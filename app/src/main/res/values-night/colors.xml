@@ -2,4 +2,6 @@
 <resources>
     <color name="plan_mode_bg">#FF3700B3</color>
     <color name="shop_mode_bg">#FF00574B</color>
+
+    <color name="selection_highlight">#42536B</color>
 </resources>

@@ -31,12 +31,12 @@ class ShopFragment :
     private lateinit var prefsManager: PreferencesManager
 
     private var currentStoreName: String? = null
-
-    override fun provideAdapter() = ShopItemsAdapter(
+    override fun provideAdapter() = StoreItemsAdapter(
         onItemClick = {
             if (binding.searchContainer.visibility == View.VISIBLE) {
                 binding.searchInput.clearFocus()
             }
+            false
         },
         onItemLongClick = { },
         onStartDrag = { holder -> enableDragOn(holder) }
@@ -301,6 +301,7 @@ class ShopFragment :
         imm?.hideSoftInputFromWindow(binding.searchInput.windowToken, 0)
         (activity as? MainActivity)?.showBottomBar()
     }
+
 
     override fun onDestroyView() {
         super.onDestroyView()

@@ -29,6 +29,7 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
     private lateinit var viewModel: StoresViewModel
     private lateinit var prefsManager: PreferencesManager
     private lateinit var storesAdapter: StoreItemsAdapter
+    private lateinit var itemTouchHelper: androidx.recyclerview.widget.ItemTouchHelper
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -52,7 +53,13 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
         bottomBarInput = EditText(requireContext())
 
         adapter = provideAdapter()
-        setupRecyclerView(recyclerView)
+
+        recyclerView.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(requireContext())
+        recyclerView.adapter = adapter
+
+        val dragCallback = MultiSelectDragCallback()
+        itemTouchHelper = androidx.recyclerview.widget.ItemTouchHelper(dragCallback)
+        itemTouchHelper.attachToRecyclerView(recyclerView)
 
         observeViewModel()
         super.onViewCreated(view, savedInstanceState)
@@ -60,13 +67,17 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
 
     override fun provideAdapter(): BaseDragAdapter<StoreItem, *> {
         storesAdapter = StoreItemsAdapter(
-            onItemClick = {},
+            onItemClick = { true },
             onItemLongClick = {},
             onStartDrag = { holder ->
-                enableDragOn(holder)
+                itemTouchHelper.startDrag(holder)
             }
         )
         return storesAdapter
+    }
+
+    fun clearSelection() {
+        storesAdapter.clearSelection()
     }
 
     private fun observeViewModel() {
@@ -269,6 +280,298 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
         }
 
         popupMenu.show()
+    }
+
+    inner class MultiSelectDragCallback : androidx.recyclerview.widget.ItemTouchHelper.Callback() {
+        private var pendingSwipeAction: Pair<StoreItem, Int>? = null
+
+        override fun getSwipeThreshold(viewHolder: androidx.recyclerview.widget.RecyclerView.ViewHolder): Float {
+            return 0.3f
+        }
+
+        override fun getMovementFlags(
+            recyclerView: androidx.recyclerview.widget.RecyclerView,
+            viewHolder: androidx.recyclerview.widget.RecyclerView.ViewHolder
+        ): Int {
+            val dragFlags =
+                androidx.recyclerview.widget.ItemTouchHelper.UP or androidx.recyclerview.widget.ItemTouchHelper.DOWN
+            val swipeFlags =
+                androidx.recyclerview.widget.ItemTouchHelper.LEFT or androidx.recyclerview.widget.ItemTouchHelper.RIGHT
+            return makeMovementFlags(dragFlags, swipeFlags)
+        }
+
+        override fun onMove(
+            recyclerView: androidx.recyclerview.widget.RecyclerView,
+            viewHolder: androidx.recyclerview.widget.RecyclerView.ViewHolder,
+            target: androidx.recyclerview.widget.RecyclerView.ViewHolder
+        ): Boolean {
+            val fromPosition = viewHolder.bindingAdapterPosition
+            val toPosition = target.bindingAdapterPosition
+
+            if (fromPosition == androidx.recyclerview.widget.RecyclerView.NO_POSITION ||
+                toPosition == androidx.recyclerview.widget.RecyclerView.NO_POSITION
+            ) {
+                return false
+            }
+
+            val blockRange = storesAdapter.getContiguousSelectionRange(fromPosition)
+
+            if (blockRange != null) {
+                if (toPosition !in blockRange) {
+                    val movingUp = toPosition < fromPosition
+
+                    val moveBlockTarget = if (movingUp) {
+                        blockRange.first - 1
+                    } else {
+                        blockRange.last + 1
+                    }
+
+                    storesAdapter.moveBlock(blockRange, moveBlockTarget)
+                }
+            } else {
+                storesAdapter.moveItem(fromPosition, toPosition)
+            }
+
+            return true
+        }
+
+        override fun onSwiped(viewHolder: androidx.recyclerview.widget.RecyclerView.ViewHolder, direction: Int) {
+            val position = viewHolder.bindingAdapterPosition
+            if (position != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
+                val item = adapter.getItems()[position]
+                pendingSwipeAction = Pair(item, direction)
+                storesAdapter.notifyItemChanged(position)
+            }
+        }
+
+        override fun onSelectedChanged(
+            viewHolder: androidx.recyclerview.widget.RecyclerView.ViewHolder?,
+            actionState: Int
+        ) {
+            super.onSelectedChanged(viewHolder, actionState)
+            when (actionState) {
+                androidx.recyclerview.widget.ItemTouchHelper.ACTION_STATE_DRAG -> {
+                    isDragging = true
+                    val position = viewHolder?.bindingAdapterPosition
+                    if (position != null && position != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
+                        storesAdapter.bunchSelection(position)
+                    }
+                }
+
+                androidx.recyclerview.widget.ItemTouchHelper.ACTION_STATE_SWIPE -> {
+                    isSwiping = true
+                }
+            }
+        }
+
+        override fun clearView(
+            recyclerView: androidx.recyclerview.widget.RecyclerView,
+            viewHolder: androidx.recyclerview.widget.RecyclerView.ViewHolder
+        ) {
+            super.clearView(recyclerView, viewHolder)
+
+            if (isDragging) {
+                val draggedPosition = viewHolder.bindingAdapterPosition
+                if (draggedPosition != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
+                    val blockRange = storesAdapter.getContiguousSelectionRange(draggedPosition)
+                    if (blockRange != null) {
+                        for (i in blockRange) {
+                            val vh = recyclerView.findViewHolderForAdapterPosition(i)
+                            vh?.itemView?.translationY = 0f
+                        }
+                    }
+                }
+
+                val finalList = adapter.getItems()
+                persistOrder(finalList)
+                isDragging = false
+            }
+
+            if (isSwiping) {
+                isSwiping = false
+                pendingSwipeAction?.let { (item, direction) ->
+                    when (direction) {
+                        androidx.recyclerview.widget.ItemTouchHelper.LEFT -> onSwipeLeft(item)
+                        androidx.recyclerview.widget.ItemTouchHelper.RIGHT -> onSwipeRight(item)
+                    }
+                    pendingSwipeAction = null
+                    storesAdapter.setItems(storesAdapter.getItems())
+                }
+            }
+        }
+
+        override fun isLongPressDragEnabled(): Boolean = false
+        override fun isItemViewSwipeEnabled(): Boolean = true
+
+        override fun onChildDraw(
+            c: android.graphics.Canvas,
+            recyclerView: androidx.recyclerview.widget.RecyclerView,
+            viewHolder: androidx.recyclerview.widget.RecyclerView.ViewHolder,
+            dX: Float,
+            dY: Float,
+            actionState: Int,
+            isCurrentlyActive: Boolean
+        ) {
+            if (actionState == androidx.recyclerview.widget.ItemTouchHelper.ACTION_STATE_SWIPE) {
+                drawSwipeBackground(c, viewHolder, dX)
+            }
+
+            super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive)
+
+            if (actionState == androidx.recyclerview.widget.ItemTouchHelper.ACTION_STATE_DRAG) {
+                val draggedPosition = viewHolder.bindingAdapterPosition
+                if (draggedPosition != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
+                    val blockRange = storesAdapter.getContiguousSelectionRange(draggedPosition)
+                    if (blockRange != null) {
+                        for (i in blockRange) {
+                            if (i != draggedPosition) {
+                                val vh = recyclerView.findViewHolderForAdapterPosition(i)
+                                vh?.itemView?.translationY = dY
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private fun drawSwipeBackground(
+            c: android.graphics.Canvas,
+            viewHolder: androidx.recyclerview.widget.RecyclerView.ViewHolder,
+            dX: Float
+        ) {
+            val itemView = viewHolder.itemView
+            val position = viewHolder.bindingAdapterPosition
+
+            if (position == androidx.recyclerview.widget.RecyclerView.NO_POSITION) return
+
+            val item = adapter.getItems()[position]
+            val paint = android.graphics.Paint()
+            val swipeThreshold = itemView.width * 0.3f
+
+            if (dX > 0) {
+                val targetState = getSwipeRightTargetState(item)
+                val baseColor = getColorForState(targetState)
+                val thresholdReached = dX >= swipeThreshold
+                val color = if (thresholdReached) baseColor else desaturateColor(baseColor)
+
+                paint.color = color
+                c.drawRect(
+                    itemView.left.toFloat(),
+                    itemView.top.toFloat(),
+                    itemView.left + dX,
+                    itemView.bottom.toFloat(),
+                    paint
+                )
+
+                drawStateIcon(c, itemView, dX, targetState, isLeftSide = true)
+            } else if (dX < 0) {
+                val targetState = getSwipeLeftTargetState(item)
+                val baseColor = getColorForState(targetState)
+                val thresholdReached = kotlin.math.abs(dX) >= swipeThreshold
+                val color = if (thresholdReached) baseColor else desaturateColor(baseColor)
+
+                paint.color = color
+                c.drawRect(
+                    itemView.right + dX,
+                    itemView.top.toFloat(),
+                    itemView.right.toFloat(),
+                    itemView.bottom.toFloat(),
+                    paint
+                )
+
+                drawStateIcon(c, itemView, dX, targetState, isLeftSide = false)
+            }
+        }
+
+        private fun drawStateIcon(
+            c: android.graphics.Canvas,
+            itemView: android.view.View,
+            dX: Float,
+            targetState: String,
+            isLeftSide: Boolean
+        ) {
+            if (targetState.isEmpty()) return
+
+            val iconPaint = android.graphics.Paint().apply {
+                color = android.graphics.Color.WHITE
+                isAntiAlias = true
+            }
+
+            val iconSize = 50f
+            val padding = 48f
+            val iconX = if (isLeftSide) {
+                itemView.left + padding
+            } else {
+                itemView.right - padding
+            }
+            val centerY = itemView.top + (itemView.height / 2f)
+
+            when (targetState) {
+                "Available" -> drawCheckmark(c, iconX, centerY, iconSize, iconPaint)
+                "N/A" -> drawX(c, iconX, centerY, iconSize, iconPaint)
+            }
+        }
+
+        private fun drawCheckmark(
+            canvas: android.graphics.Canvas,
+            centerX: Float,
+            centerY: Float,
+            size: Float,
+            paint: android.graphics.Paint
+        ) {
+            val path = android.graphics.Path()
+            path.moveTo(centerX - size * 0.3f, centerY)
+            path.lineTo(centerX - size * 0.1f, centerY + size * 0.3f)
+            path.lineTo(centerX + size * 0.4f, centerY - size * 0.3f)
+
+            val strokePaint = android.graphics.Paint(paint).apply {
+                style = android.graphics.Paint.Style.STROKE
+                strokeWidth = size * 0.15f
+                strokeCap = android.graphics.Paint.Cap.ROUND
+                strokeJoin = android.graphics.Paint.Join.ROUND
+            }
+            canvas.drawPath(path, strokePaint)
+        }
+
+        private fun drawX(
+            canvas: android.graphics.Canvas,
+            centerX: Float,
+            centerY: Float,
+            size: Float,
+            paint: android.graphics.Paint
+        ) {
+            val strokePaint = android.graphics.Paint(paint).apply {
+                style = android.graphics.Paint.Style.STROKE
+                strokeWidth = size * 0.15f
+                strokeCap = android.graphics.Paint.Cap.ROUND
+            }
+
+            canvas.drawLine(
+                centerX - size * 0.3f, centerY - size * 0.3f,
+                centerX + size * 0.3f, centerY + size * 0.3f,
+                strokePaint
+            )
+            canvas.drawLine(
+                centerX + size * 0.3f, centerY - size * 0.3f,
+                centerX - size * 0.3f, centerY + size * 0.3f,
+                strokePaint
+            )
+        }
+
+        private fun desaturateColor(color: Int): Int {
+            val hsv = FloatArray(3)
+            android.graphics.Color.colorToHSV(color, hsv)
+            hsv[1] = hsv[1] * 0.3f
+            return android.graphics.Color.HSVToColor(hsv)
+        }
+
+        private fun getColorForState(state: String): Int {
+            return when (state) {
+                "Available" -> android.graphics.Color.parseColor("#4CAF50")
+                "N/A" -> android.graphics.Color.parseColor("#F44336")
+                else -> android.graphics.Color.GRAY
+            }
+        }
     }
 
     override fun onDestroyView() {

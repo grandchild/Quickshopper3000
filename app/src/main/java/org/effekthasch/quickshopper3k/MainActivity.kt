@@ -89,6 +89,7 @@ class MainActivity : AppCompatActivity() {
                 binding.storeSelectorButton.text = shopFragment?.getStoreMenuTitle() ?: "◉"
             }
 
+
             else -> {
                 binding.storeSelectorButton.visibility = android.view.View.GONE
             }
@@ -124,6 +125,13 @@ class MainActivity : AppCompatActivity() {
         binding.bottomAppBar.setOnTouchListener { _, event ->
             gestureDetector.onTouchEvent(event)
             false
+        }
+
+        binding.bottomAppBar.setOnClickListener {
+            val currentFragment = supportFragmentManager.findFragmentByTag("f$currentPage")
+            if (currentFragment is org.effekthasch.quickshopper3k.ui.stores.StoresFragment) {
+                currentFragment.clearSelection()
+            }
         }
     }
 
@@ -185,6 +193,11 @@ class MainActivity : AppCompatActivity() {
             2 -> {
                 binding.fab.setImageResource(android.R.drawable.ic_menu_search)
                 binding.fab.contentDescription = getString(R.string.search)
+            }
+
+            3 -> {
+                binding.fab.setImageResource(android.R.drawable.ic_input_add)
+                binding.fab.contentDescription = getString(R.string.add_store)
             }
         }
 

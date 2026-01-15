@@ -8,6 +8,8 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
+    <color name="selection_highlight">#90CAF9</color>
+
     <color name="plan_mode_bg">#FF6200EE</color>
     <color name="plan_mode_bg_dark">#FF3700B3</color>
     <color name="shop_mode_bg">#FF018786</color>
