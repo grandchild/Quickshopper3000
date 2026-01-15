@@ -108,9 +108,7 @@ class PlanFragment :
 
             R.id.action_activate_all -> {
                 viewModel.activateAll { result ->
-                    result.onSuccess {
-                        Snackbar.make(binding.root, R.string.all_items_activated, Snackbar.LENGTH_SHORT).show()
-                    }.onFailure {
+                    result.onFailure {
                         Snackbar.make(binding.root, R.string.error_occurred, Snackbar.LENGTH_SHORT).show()
                     }
                 }
@@ -119,9 +117,7 @@ class PlanFragment :
 
             R.id.action_deactivate_all -> {
                 viewModel.deactivateAll { result ->
-                    result.onSuccess {
-                        Snackbar.make(binding.root, R.string.all_items_deactivated, Snackbar.LENGTH_SHORT).show()
-                    }.onFailure {
+                    result.onFailure {
                         Snackbar.make(binding.root, R.string.error_occurred, Snackbar.LENGTH_SHORT).show()
                     }
                 }
