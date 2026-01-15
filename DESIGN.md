@@ -66,6 +66,7 @@
         - unsorted items are sorted by item id (i.e. sorted by age because newer items = higher id)
         - duplicate sort indices are not critical (items are sorted next to each other by item id)
           but app logic should prevent this. but don't fail on db layer if app logic fails.
+- shop page visible from lockscreen
 - offline-first
 - open source (CC0)
 - minimal permissions

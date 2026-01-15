@@ -54,6 +54,19 @@
                 android:visibility="gone"
             />
 
+            <TextView
+                android:id="@+id/selectionCounterText"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:gravity="center"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:textSize="18sp"
+                android:textColor="?attr/colorOnPrimary"
+                android:background="?attr/selectableItemBackground"
+                android:visibility="gone"
+            />
+
         </LinearLayout>
 
     </com.google.android.material.bottomappbar.BottomAppBar>

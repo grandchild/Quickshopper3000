@@ -41,6 +41,25 @@ class MainActivity : AppCompatActivity() {
     private fun setupBottomAppBar() {
         updateBottomAppBarForPage(1)
         setupBottomBarGestures()
+        setupSelectionCounter()
+    }
+
+    private fun setupSelectionCounter() {
+        binding.selectionCounterText.setOnClickListener {
+            val currentFragment = supportFragmentManager.findFragmentByTag("f$currentPage")
+            if (currentFragment is org.effekthasch.quickshopper3k.ui.stores.StoresFragment) {
+                currentFragment.clearSelection()
+            }
+        }
+    }
+
+    fun updateSelectionCounter(count: Int) {
+        if (count > 0) {
+            binding.selectionCounterText.text = count.toString()
+            binding.selectionCounterText.visibility = android.view.View.VISIBLE
+        } else {
+            binding.selectionCounterText.visibility = android.view.View.GONE
+        }
     }
 
     private fun setupOverflowButton() {
@@ -127,13 +146,6 @@ class MainActivity : AppCompatActivity() {
             gestureDetector.onTouchEvent(event)
             false
         }
-
-        binding.bottomAppBar.setOnClickListener {
-            val currentFragment = supportFragmentManager.findFragmentByTag("f$currentPage")
-            if (currentFragment is org.effekthasch.quickshopper3k.ui.stores.StoresFragment) {
-                currentFragment.clearSelection()
-            }
-        }
     }
 
     private fun setupViewPager() {
@@ -147,6 +159,9 @@ class MainActivity : AppCompatActivity() {
                 updateFabForPage(position)
                 updateStoreSelectorButton()
                 updateLockscreenFlags(position)
+                if (position != 0) {
+                    updateSelectionCounter(0)
+                }
                 invalidateOptionsMenu()
             }
         })

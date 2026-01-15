@@ -73,11 +73,28 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
                 itemTouchHelper.startDrag(holder)
             }
         )
+        storesAdapter.registerAdapterDataObserver(object :
+            androidx.recyclerview.widget.RecyclerView.AdapterDataObserver() {
+            override fun onChanged() {
+                updateSelectionCounter()
+            }
+
+            override fun onItemRangeChanged(positionStart: Int, itemCount: Int) {
+                updateSelectionCounter()
+            }
+        })
         return storesAdapter
     }
 
     fun clearSelection() {
         storesAdapter.clearSelection()
+        updateSelectionCounter()
+    }
+
+    private fun updateSelectionCounter() {
+        (activity as? org.effekthasch.quickshopper3k.MainActivity)?.updateSelectionCounter(
+            storesAdapter.getSelectedPositions().size
+        )
     }
 
     private fun observeViewModel() {
@@ -242,6 +259,7 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
     override fun onResume() {
         super.onResume()
         (activity as? org.effekthasch.quickshopper3k.MainActivity)?.updateStoreSelectorButton()
+        updateSelectionCounter()
     }
 
     fun getCurrentStoreName(): String {
