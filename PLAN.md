@@ -146,6 +146,7 @@ This is the ONLY page for managing stores and per-store item configuration.
 - **FAB**: Search (expands to search input, anchored to BottomAppBar)
 - **Item swipe gestures**: per DESIGN.md state transitions
 - **Horizontal swipe**: Switch to Plan mode
+- **Lockscreen**: When phone is locked while on Shop page, app remains visible on lockscreen (setShowWhenLocked/setTurnScreenOn flags active only on page 2)
 
 ### Theming
 - Material Design Components
@@ -323,12 +324,13 @@ Version 1.0 includes:
 7. ✅ Stores page (reorder items, set availability per store via swipes)
 8. ✅ Store selector via menu dialog (Stores mode)
 9. ✅ Swipe gestures for availability toggle (Stores mode)
-10. ✅ Specialty store flag in database and UI
-11. ✅ Import items feature (bulk add from text)
-12. ✅ Bulk state changes (activate all / deactivate all in Plan mode)
-13. ⏳ Settings + preferences
-14. ⏳ Polish + accessibility
-15. ⏳ Testing
+11. ✅ Specialty store flag in database and UI
+12. ✅ Import items feature (bulk add from text)
+13. ✅ Bulk state changes (activate all / deactivate all in Plan mode)
+14. ✅ Lockscreen visibility for Shop mode
+15. ⏳ Settings + preferences
+16. ⏳ Polish + accessibility
+17. ⏳ Testing
 
 ## Implementation Details to Decide
 - Drag animation style

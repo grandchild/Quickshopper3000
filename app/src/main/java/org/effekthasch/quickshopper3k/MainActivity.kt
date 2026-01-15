@@ -35,6 +35,7 @@ class MainActivity : AppCompatActivity() {
         setupOverflowButton()
         setupStoreSelectorButton()
         applyHandednessSettings()
+        updateLockscreenFlags(currentPage)
     }
 
     private fun setupBottomAppBar() {
@@ -145,9 +146,20 @@ class MainActivity : AppCompatActivity() {
                 updateBottomAppBarForPage(position)
                 updateFabForPage(position)
                 updateStoreSelectorButton()
+                updateLockscreenFlags(position)
                 invalidateOptionsMenu()
             }
         })
+    }
+
+    private fun updateLockscreenFlags(position: Int) {
+        if (position == 2) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        } else {
+            setShowWhenLocked(false)
+            setTurnScreenOn(false)
+        }
     }
 
     private fun setupFab() {
