@@ -67,6 +67,17 @@ class MainActivity : AppCompatActivity() {
             val popup = android.widget.PopupMenu(this, view)
             popup.menuInflater.inflate(R.menu.bottom_app_bar_menu, popup.menu)
 
+            try {
+                val field = popup.javaClass.getDeclaredField("mPopup")
+                field.isAccessible = true
+                val menuPopupHelper = field.get(popup)
+                val classPopupHelper = Class.forName(menuPopupHelper.javaClass.name)
+                val setForceIcons = classPopupHelper.getMethod("setForceShowIcon", Boolean::class.javaPrimitiveType)
+                setForceIcons.invoke(menuPopupHelper, true)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
             popup.menu.findItem(R.id.action_toggle_done_items)?.isVisible = currentPage == 2
             popup.menu.findItem(R.id.action_store_selector)?.isVisible = false
             popup.menu.findItem(R.id.action_select_store)?.isVisible = false

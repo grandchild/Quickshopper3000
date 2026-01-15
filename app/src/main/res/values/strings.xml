@@ -22,6 +22,8 @@
     <string name="import_items">Import items</string>
     <string name="activate_all">Activate all</string>
     <string name="deactivate_all">Deactivate all</string>
+    <string name="activate_all">all</string>
+    <string name="deactivate_all">all</string>
 
     <!-- Item states -->
     <string name="state_done">Done</string>
