@@ -31,12 +31,14 @@
     <item
         android:id="@+id/action_activate_all"
         android:title="@string/activate_all"
+        android:icon="@drawable/ic_state_need"
         android:orderInCategory="100"
     />
 
     <item
         android:id="@+id/action_deactivate_all"
         android:title="@string/deactivate_all"
+        android:icon="@drawable/ic_state_done"
         android:orderInCategory="100"
     />
 

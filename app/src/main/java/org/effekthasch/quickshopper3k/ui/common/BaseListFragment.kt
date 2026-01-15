@@ -10,6 +10,7 @@ import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.LinearLayoutManager
+import org.effekthasch.quickshopper3k.R
 import org.effekthasch.quickshopper3k.ui.common.BaseDragAdapter
 
 abstract class BaseListFragment<T> : Fragment() {
@@ -182,7 +183,7 @@ abstract class BaseListFragment<T> : Fragment() {
             c: android.graphics.Canvas,
             viewHolder: RecyclerView.ViewHolder,
             dX: Float,
-            dY: Float
+            @Suppress("UNUSED_PARAMETER") dY: Float
         ) {
             val itemView = viewHolder.itemView
             val position = viewHolder.bindingAdapterPosition
@@ -208,7 +209,7 @@ abstract class BaseListFragment<T> : Fragment() {
                     paint
                 )
 
-                drawStateIcon(c, itemView, dX, targetState, isLeftSide = true)
+                drawStateIcon(c, itemView, targetState, isLeftSide = true)
             } else if (dX < 0) {
                 val targetState = getSwipeLeftTargetState(item)
                 val baseColor = getColorForState(targetState)
@@ -224,7 +225,7 @@ abstract class BaseListFragment<T> : Fragment() {
                     paint
                 )
 
-                drawStateIcon(c, itemView, dX, targetState, isLeftSide = false)
+                drawStateIcon(c, itemView, targetState, isLeftSide = false)
             }
         }
 
@@ -249,16 +250,10 @@ abstract class BaseListFragment<T> : Fragment() {
         private fun drawStateIcon(
             c: android.graphics.Canvas,
             itemView: android.view.View,
-            dX: Float,
             targetState: String,
             isLeftSide: Boolean
         ) {
             if (targetState.isEmpty()) return
-
-            val iconPaint = android.graphics.Paint().apply {
-                color = android.graphics.Color.WHITE
-                isAntiAlias = true
-            }
 
             val iconSize = 50f
             val padding = 48f
@@ -269,83 +264,28 @@ abstract class BaseListFragment<T> : Fragment() {
             }
             val centerY = itemView.top + (itemView.height / 2f)
 
-            when (targetState) {
-                "Done" -> drawCheckmark(c, iconX, centerY, iconSize, iconPaint)
-                "N/A" -> drawX(c, iconX, centerY, iconSize, iconPaint)
-                "Needed" -> drawPlus(c, iconX, centerY, iconSize, iconPaint)
-                "Available" -> drawCheckmark(c, iconX, centerY, iconSize, iconPaint)
-            }
-        }
-
-        private fun drawCheckmark(
-            canvas: android.graphics.Canvas,
-            centerX: Float,
-            centerY: Float,
-            size: Float,
-            paint: android.graphics.Paint
-        ) {
-            val path = android.graphics.Path()
-            path.moveTo(centerX - size * 0.3f, centerY)
-            path.lineTo(centerX - size * 0.1f, centerY + size * 0.3f)
-            path.lineTo(centerX + size * 0.4f, centerY - size * 0.3f)
-
-            val strokePaint = android.graphics.Paint(paint).apply {
-                style = android.graphics.Paint.Style.STROKE
-                strokeWidth = size * 0.15f
-                strokeCap = android.graphics.Paint.Cap.ROUND
-                strokeJoin = android.graphics.Paint.Join.ROUND
-            }
-            canvas.drawPath(path, strokePaint)
-        }
-
-        private fun drawX(
-            canvas: android.graphics.Canvas,
-            centerX: Float,
-            centerY: Float,
-            size: Float,
-            paint: android.graphics.Paint
-        ) {
-            val strokePaint = android.graphics.Paint(paint).apply {
-                style = android.graphics.Paint.Style.STROKE
-                strokeWidth = size * 0.15f
-                strokeCap = android.graphics.Paint.Cap.ROUND
+            val drawableRes = when (targetState) {
+                "Done" -> R.drawable.ic_state_done
+                "N/A" -> R.drawable.ic_state_na
+                "Needed" -> R.drawable.ic_state_need
+                "Available" -> R.drawable.ic_state_done
+                else -> null
             }
 
-            canvas.drawLine(
-                centerX - size * 0.3f, centerY - size * 0.3f,
-                centerX + size * 0.3f, centerY + size * 0.3f,
-                strokePaint
-            )
-            canvas.drawLine(
-                centerX + size * 0.3f, centerY - size * 0.3f,
-                centerX - size * 0.3f, centerY + size * 0.3f,
-                strokePaint
-            )
-        }
+            drawableRes?.let { res ->
+                val drawable = androidx.core.content.ContextCompat.getDrawable(requireContext(), res)
+                drawable?.let {
+                    val iconSizeInt = iconSize.toInt()
+                    val left = (iconX - iconSizeInt / 2).toInt()
+                    val top = (centerY - iconSizeInt / 2).toInt()
+                    val right = left + iconSizeInt
+                    val bottom = top + iconSizeInt
 
-        private fun drawPlus(
-            canvas: android.graphics.Canvas,
-            centerX: Float,
-            centerY: Float,
-            size: Float,
-            paint: android.graphics.Paint
-        ) {
-            val strokePaint = android.graphics.Paint(paint).apply {
-                style = android.graphics.Paint.Style.STROKE
-                strokeWidth = size * 0.15f
-                strokeCap = android.graphics.Paint.Cap.ROUND
+                    it.setBounds(left, top, right, bottom)
+                    it.setTint(android.graphics.Color.WHITE)
+                    it.draw(c)
+                }
             }
-
-            canvas.drawLine(
-                centerX, centerY - size * 0.3f,
-                centerX, centerY + size * 0.3f,
-                strokePaint
-            )
-            canvas.drawLine(
-                centerX - size * 0.3f, centerY,
-                centerX + size * 0.3f, centerY,
-                strokePaint
-            )
         }
     }
 
