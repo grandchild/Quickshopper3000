@@ -51,33 +51,40 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
 
             val normalizedQuery = if (query.isBlank()) "" else normalizeForSearch(query)
 
-            value = allItems.filter { storeItem ->
-                val matchesSearch = if (query.isBlank()) {
-                    true
-                } else {
+            fun matchesSearch(storeItem: StoreItem): Boolean = query.isBlank() ||
                     normalizeForSearch(storeItem.item.name).contains(normalizedQuery, ignoreCase = true)
+
+            fun matchesVisibility(storeItem: StoreItem, mode: DoneVisibilityMode): Boolean = when {
+                isDragging -> true
+                storeItem.item.state != ItemState.DEACTIVATED -> true
+                mode == DoneVisibilityMode.ALL -> true
+                mode == DoneVisibilityMode.RECENT -> {
+                    val changedAt = storeItem.item.stateChangedAt
+                    changedAt != null && changedAt >= recentThreshold
                 }
 
-                val matchesVisibility = when {
-                    isDragging -> true
-                    storeItem.item.state != ItemState.DEACTIVATED -> true
-                    visibilityMode == DoneVisibilityMode.ALL -> true
-                    visibilityMode == DoneVisibilityMode.RECENT -> {
-                        val changedAt = storeItem.item.stateChangedAt
-                        changedAt != null && changedAt >= recentThreshold
-                    }
-
-                    else -> false
-                }
-
-                val matchesAvailability = if (currentStore == null || currentStore == 0L) {
-                    true
-                } else {
-                    storeItem.isAvailable
-                }
-
-                matchesSearch && matchesVisibility && matchesAvailability
+                else -> false
             }
+
+            fun matchesAvailability(storeItem: StoreItem): Boolean =
+                currentStore == null || currentStore == 0L || storeItem.isAvailable
+
+            var result = allItems.filter { storeItem ->
+                matchesSearch(storeItem) && matchesVisibility(storeItem, visibilityMode) && matchesAvailability(
+                    storeItem
+                )
+            }
+
+            if (result.isEmpty() && query.isNotBlank() && visibilityMode != DoneVisibilityMode.ALL) {
+                result = allItems.filter { storeItem ->
+                    matchesSearch(storeItem) && matchesVisibility(
+                        storeItem,
+                        DoneVisibilityMode.ALL
+                    ) && matchesAvailability(storeItem)
+                }
+            }
+
+            value = result
         }
 
         addSource(items) { update() }
