@@ -26,7 +26,7 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:padding="16dp"
-        android:background="?attr/selectableItemBackground"
+        android:background="?android:attr/colorBackground"
         android:visibility="gone"
         app:layout_constraintBottom_toTopOf="@+id/searchActiveBar"
         app:layout_constraintStart_toStartOf="parent"
@@ -78,7 +78,7 @@
         android:padding="6dp"
         android:layout_marginBottom="56dp"
         android:gravity="center_vertical"
-        android:background="?attr/colorSecondary"
+        android:background="?android:attr/colorBackground"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -93,7 +93,7 @@
             android:background="@android:color/transparent"
             android:contentDescription="@string/cancel"
             android:src="@android:drawable/ic_menu_close_clear_cancel"
-            android:tint="?attr/colorOnSecondary"
+            android:tint="?android:attr/textColorPrimary"
         />
 
         <TextView
@@ -101,7 +101,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:textColor="?attr/colorOnSecondary"
+            android:textColor="?android:attr/textColorPrimary"
             android:textSize="16sp"
             android:text=""
         />

@@ -222,7 +222,7 @@ class MainFragment :
     }
 
     private fun updateAddButtonVisibility(query: String) {
-        val showButton = query.isNotBlank() && !viewModel.hasExactMatch(query)
+        val showButton = query.isNotBlank() && !viewModel.hasExactMatchRaw(query)
         binding.addItemButton.visibility = if (showButton) View.VISIBLE else View.GONE
 
         val newImeAction = if (showButton) EditorInfo.IME_ACTION_DONE else EditorInfo.IME_ACTION_SEARCH
@@ -394,6 +394,9 @@ class MainFragment :
         binding.searchActiveText.text = q
         binding.searchActiveClear.setOnClickListener {
             viewModel.setSearchQuery("")
+        }
+        binding.searchActiveText.setOnClickListener {
+            showInlineSearch()
         }
     }
 

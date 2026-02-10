@@ -1,6 +1,7 @@
 package org.effekthasch.quickshopper3k.ui.main
 
 import androidx.lifecycle.LiveData
+import java.text.Normalizer
 import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -18,6 +19,10 @@ import org.effekthasch.quickshopper3k.util.DoneVisibilityMode
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
+    companion object {
+        private val COMBINING_MARKS_REGEX = Regex("\\p{M}")
+    }
+
     private val _currentStoreId = MutableStateFlow<Long?>(null)
     private val _searchQuery = MutableLiveData("")
     private val _doneVisibilityMode = MutableLiveData(DoneVisibilityMode.NONE)
@@ -44,11 +49,13 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
             val minutesThreshold = now - (recentMinutes * 60 * 1000L)
             val recentThreshold = if (flushAt != null && flushAt > minutesThreshold) flushAt else minutesThreshold
 
+            val normalizedQuery = if (query.isBlank()) "" else normalizeForSearch(query)
+
             value = allItems.filter { storeItem ->
                 val matchesSearch = if (query.isBlank()) {
                     true
                 } else {
-                    storeItem.item.name.contains(query, ignoreCase = true)
+                    normalizeForSearch(storeItem.item.name).contains(normalizedQuery, ignoreCase = true)
                 }
 
                 val matchesVisibility = when {
@@ -86,7 +93,18 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
     val searchQuery: LiveData<String> = _searchQuery
     val doneVisibilityMode: LiveData<DoneVisibilityMode> = _doneVisibilityMode
 
+    private fun normalizeForSearch(text: String): String {
+        val normalized = Normalizer.normalize(text, Normalizer.Form.NFD)
+        return normalized.replace(COMBINING_MARKS_REGEX, "")
+    }
+
     fun hasExactMatch(query: String): Boolean {
+        val allItems = items.value ?: return false
+        val normalizedQuery = normalizeForSearch(query)
+        return allItems.any { normalizeForSearch(it.item.name).equals(normalizedQuery, ignoreCase = true) }
+    }
+
+    fun hasExactMatchRaw(query: String): Boolean {
         val allItems = items.value ?: return false
         return allItems.any { it.item.name.equals(query, ignoreCase = true) }
     }
