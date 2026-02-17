@@ -44,6 +44,10 @@
     <string name="import_preview_title">Import Preview</string>
     <string name="import_preview_existing_label">Existing items</string>
     <string name="import_preview_new_label">New items</string>
+    <string name="import_preview_import_only">Import new only</string>
+    <string
+        name="import_preview_import_activate_all"
+    >Import new &amp; Activate all</string>
     <string name="add_store_title">Add Store</string>
     <string name="edit_store_title">Edit Store</string>
     <string name="delete_item_title">Delete Item</string>

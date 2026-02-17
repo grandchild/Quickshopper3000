@@ -336,6 +336,47 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         }
     }
 
+    fun activateItemsByNames(names: List<String>, onResult: (Result<Unit>) -> Unit) {
+        viewModelScope.launch {
+            val normalized = names.asSequence()
+                .map { normalizeImportName(it) }
+                .filter { it.isNotBlank() }
+                .map { it.lowercase() }
+                .distinct()
+                .toList()
+            if (normalized.isEmpty()) {
+                onResult(Result.failure(IllegalArgumentException("No items to activate")))
+                return@launch
+            }
+
+            val lookupResult = repository.getItemIdsByNames(normalized)
+            lookupResult.onSuccess { idMap ->
+                val ids = normalized.mapNotNull { idMap[it] }.distinct()
+                if (ids.isEmpty()) {
+                    onResult(Result.failure(IllegalArgumentException("No matching items to activate")))
+                    return@onSuccess
+                }
+
+                for (id in ids) {
+                    val result = repository.setItemState(
+                        id,
+                        ItemState.ACTIVATED,
+                        historyDays(),
+                        mistakeDoneSeconds(),
+                        reactivateMinSeconds()
+                    )
+                    if (result.isFailure) {
+                        onResult(Result.failure(result.exceptionOrNull() ?: IllegalStateException("Activation failed")))
+                        return@onSuccess
+                    }
+                }
+                onResult(Result.success(Unit))
+            }.onFailure { error ->
+                onResult(Result.failure(error))
+            }
+        }
+    }
+
     fun importItems(text: String, onResult: (Result<Int>) -> Unit) {
         viewModelScope.launch {
             val lines = parseImportLines(text)

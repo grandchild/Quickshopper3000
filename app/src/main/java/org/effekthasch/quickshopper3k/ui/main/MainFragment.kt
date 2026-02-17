@@ -510,10 +510,13 @@ class MainFragment :
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.import_preview_title)
             .setView(dialogBinding.root)
-            .setPositiveButton(R.string.ok) { _, _ ->
+            .setPositiveButton(R.string.import_preview_import_only) { _, _ ->
                 importNewItems(preview.newItems)
             }
-            .setNegativeButton(R.string.cancel, null)
+            .setNegativeButton(R.string.import_preview_import_activate_all) { _, _ ->
+                importAndActivateItems(preview.orderedItems.map { it.name }, preview.newItems)
+            }
+            .setNeutralButton(R.string.cancel, null)
             .show()
     }
 
@@ -536,13 +539,38 @@ class MainFragment :
         return builder
     }
 
-    private fun importNewItems(names: List<String>) {
+    private fun importAndActivateItems(allNames: List<String>, newNames: List<String>) {
+        if (allNames.isEmpty()) {
+            return
+        }
+        if (newNames.isEmpty()) {
+            activateImportedItems(allNames)
+            return
+        }
+
+        importNewItems(newNames) { result ->
+            result.onSuccess {
+                activateImportedItems(allNames)
+            }
+        }
+    }
+
+    private fun activateImportedItems(names: List<String>) {
+        viewModel.activateItemsByNames(names) { result ->
+            result.onFailure {
+                Snackbar.make(binding.root, R.string.error_occurred, Snackbar.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun importNewItems(names: List<String>, onResult: ((Result<Int>) -> Unit)? = null) {
         if (names.isEmpty()) {
             Snackbar.make(
                 binding.root,
                 getString(R.string.items_imported, 0),
                 Snackbar.LENGTH_SHORT
             ).show()
+            onResult?.invoke(Result.success(0))
             return
         }
 
@@ -567,6 +595,7 @@ class MainFragment :
                     Snackbar.LENGTH_SHORT
                 ).show()
             }
+            onResult?.invoke(result)
         }
     }
 
