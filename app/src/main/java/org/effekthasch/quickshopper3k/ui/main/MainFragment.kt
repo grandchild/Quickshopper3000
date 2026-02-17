@@ -3,6 +3,9 @@ package org.effekthasch.quickshopper3k.ui.main
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.text.Spannable
+import android.text.SpannableStringBuilder
+import android.text.style.ForegroundColorSpan
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -10,6 +13,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.getSystemService
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModelProvider
@@ -22,6 +26,7 @@ import org.effekthasch.quickshopper3k.data.local.AppDatabase
 import org.effekthasch.quickshopper3k.data.repository.ShoppingRepository
 import org.effekthasch.quickshopper3k.databinding.DialogAddItemBinding
 import org.effekthasch.quickshopper3k.databinding.DialogImportItemsBinding
+import org.effekthasch.quickshopper3k.databinding.DialogImportItemsPreviewBinding
 import org.effekthasch.quickshopper3k.databinding.FragmentMainBinding
 import org.effekthasch.quickshopper3k.domain.model.ItemState
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
@@ -474,14 +479,14 @@ class MainFragment :
                         .create()
                     progressDialog.show()
 
-                    viewModel.importItems(text) { result ->
+                    viewModel.getImportPreview(text) { result ->
                         progressDialog.dismiss()
-                        result.onSuccess { count ->
-                            Snackbar.make(
-                                binding.root,
-                                getString(R.string.items_imported, count),
-                                Snackbar.LENGTH_SHORT
-                            ).show()
+                        result.onSuccess { preview ->
+                            if (preview.existingItems.isEmpty()) {
+                                importNewItems(preview.newItems)
+                                return@onSuccess
+                            }
+                            showImportItemsPreviewDialog(preview)
                         }.onFailure {
                             Snackbar.make(
                                 binding.root,
@@ -496,6 +501,73 @@ class MainFragment :
             .show()
 
         dialogBinding.importTextInput.requestFocus()
+    }
+
+    private fun showImportItemsPreviewDialog(preview: MainViewModel.ImportPreview) {
+        val dialogBinding = DialogImportItemsPreviewBinding.inflate(layoutInflater)
+        dialogBinding.importItemsText.text = buildImportPreviewText(preview)
+
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.import_preview_title)
+            .setView(dialogBinding.root)
+            .setPositiveButton(R.string.ok) { _, _ ->
+                importNewItems(preview.newItems)
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun buildImportPreviewText(preview: MainViewModel.ImportPreview): CharSequence {
+        val existingColor = ContextCompat.getColor(requireContext(), R.color.import_preview_existing)
+        val newColor = ContextCompat.getColor(requireContext(), R.color.import_preview_new)
+        val builder = SpannableStringBuilder()
+
+        preview.orderedItems.forEachIndexed { index, item ->
+            val start = builder.length
+            builder.append(item.name)
+            val end = builder.length
+            val color = if (item.isExisting) existingColor else newColor
+            builder.setSpan(ForegroundColorSpan(color), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            if (index < preview.orderedItems.lastIndex) {
+                builder.append("\n")
+            }
+        }
+
+        return builder
+    }
+
+    private fun importNewItems(names: List<String>) {
+        if (names.isEmpty()) {
+            Snackbar.make(
+                binding.root,
+                getString(R.string.items_imported, 0),
+                Snackbar.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        val progressDialog = AlertDialog.Builder(requireContext())
+            .setMessage(R.string.importing_items)
+            .setCancelable(false)
+            .create()
+        progressDialog.show()
+
+        viewModel.importItems(names) { result ->
+            progressDialog.dismiss()
+            result.onSuccess { count ->
+                Snackbar.make(
+                    binding.root,
+                    getString(R.string.items_imported, count),
+                    Snackbar.LENGTH_SHORT
+                ).show()
+            }.onFailure {
+                Snackbar.make(
+                    binding.root,
+                    R.string.error_occurred,
+                    Snackbar.LENGTH_SHORT
+                ).show()
+            }
+        }
     }
 
     private fun shareActiveItems() {

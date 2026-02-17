@@ -4,4 +4,6 @@
     <color name="shop_mode_bg">#FF00574B</color>
 
     <color name="selection_highlight">#42536B</color>
+    <color name="import_preview_existing">#B0B0B0</color>
+    <color name="import_preview_new">#81C784</color>
 </resources>

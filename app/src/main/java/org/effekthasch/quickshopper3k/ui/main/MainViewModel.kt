@@ -23,6 +23,17 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         private val COMBINING_MARKS_REGEX = Regex("\\p{M}")
     }
 
+    data class ImportPreviewItem(
+        val name: String,
+        val isExisting: Boolean
+    )
+
+    data class ImportPreview(
+        val orderedItems: List<ImportPreviewItem>,
+        val existingItems: List<String>,
+        val newItems: List<String>
+    )
+
     private val _currentStoreId = MutableStateFlow<Long?>(null)
     private val _searchQuery = MutableLiveData("")
     private val _doneVisibilityMode = MutableLiveData(DoneVisibilityMode.NONE)
@@ -106,6 +117,32 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
     private fun normalizeForSearch(text: String): String {
         val normalized = Normalizer.normalize(text, Normalizer.Form.NFD)
         return normalized.replace(COMBINING_MARKS_REGEX, "")
+    }
+
+    private fun normalizeImportName(text: String): String {
+        return normalizeForSearch(text).trim()
+    }
+
+    private fun parseImportLines(text: String): List<String> {
+        val seen = mutableSetOf<String>()
+        val result = mutableListOf<String>()
+        text.lines()
+            .map { it.trim() }
+            .map { line ->
+                var stripped = line
+                while (stripped.startsWith("-") || stripped.startsWith("*")) {
+                    stripped = stripped.drop(1).trimStart()
+                }
+                stripped
+            }
+            .filter { it.isNotBlank() }
+            .forEach { line ->
+                val normalized = normalizeImportName(line)
+                if (normalized.isNotBlank() && seen.add(normalized.lowercase())) {
+                    result.add(line)
+                }
+            }
+        return result
     }
 
     private fun historyDays(): Int = _historyDays.value ?: 183
@@ -255,19 +292,53 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         }
     }
 
+    fun getImportPreview(text: String, onResult: (Result<ImportPreview>) -> Unit) {
+        viewModelScope.launch {
+            val lines = parseImportLines(text)
+            if (lines.isEmpty()) {
+                onResult(Result.failure(Exception("No items to import")))
+                return@launch
+            }
+
+            val existingResult = repository.getAllItemNames()
+            existingResult.onSuccess { existingNames ->
+                val normalizedExisting = existingNames.map { normalizeImportName(it).lowercase() }.toSet()
+                val existingItems = mutableListOf<String>()
+                val newItems = mutableListOf<String>()
+                val orderedItems = mutableListOf<ImportPreviewItem>()
+                lines.forEach { line ->
+                    val normalized = normalizeImportName(line).lowercase()
+                    if (normalizedExisting.contains(normalized)) {
+                        existingItems.add(line)
+                        orderedItems.add(ImportPreviewItem(line, true))
+                    } else {
+                        newItems.add(line)
+                        orderedItems.add(ImportPreviewItem(line, false))
+                    }
+                }
+                onResult(Result.success(ImportPreview(orderedItems, existingItems, newItems)))
+            }.onFailure { error ->
+                onResult(Result.failure(error))
+            }
+        }
+    }
+
+    fun importItems(names: List<String>, onResult: (Result<Int>) -> Unit) {
+        viewModelScope.launch {
+            val cleaned = names.map { it.trim() }.filter { it.isNotBlank() }
+            if (cleaned.isEmpty()) {
+                onResult(Result.failure(Exception("No items to import")))
+                return@launch
+            }
+
+            val result = repository.bulkAddItems(cleaned, historyDays())
+            onResult(result)
+        }
+    }
+
     fun importItems(text: String, onResult: (Result<Int>) -> Unit) {
         viewModelScope.launch {
-            val lines = text.lines()
-                .map { it.trim() }
-                .map { line ->
-                    var stripped = line
-                    while (stripped.startsWith("-") || stripped.startsWith("*")) {
-                        stripped = stripped.drop(1).trimStart()
-                    }
-                    stripped
-                }
-                .filter { it.isNotBlank() }
-
+            val lines = parseImportLines(text)
             if (lines.isEmpty()) {
                 onResult(Result.failure(Exception("No items to import")))
                 return@launch

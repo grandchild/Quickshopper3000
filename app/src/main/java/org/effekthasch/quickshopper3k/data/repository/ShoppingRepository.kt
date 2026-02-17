@@ -36,6 +36,14 @@ class ShoppingRepository(private val database: AppDatabase) {
         }
     }
 
+    suspend fun getAllItemNames(): Result<List<String>> {
+        return try {
+            Result.success(itemDao.getAllItemNames())
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     fun getItemsForStore(storeId: Long): Flow<List<StoreItem>> {
         return itemDao.getItemsForStore(storeId).map { items ->
             items.map { itemWithStoreInfo ->

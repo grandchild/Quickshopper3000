@@ -14,4 +14,6 @@
     <color name="plan_mode_bg_dark">#FF3700B3</color>
     <color name="shop_mode_bg">#FF018786</color>
     <color name="shop_mode_bg_dark">#FF00574B</color>
+    <color name="import_preview_existing">#9E9E9E</color>
+    <color name="import_preview_new">#2E7D32</color>
 </resources>

@@ -40,6 +40,9 @@ interface ItemDao {
     @Query("SELECT * FROM items")
     suspend fun getAllItems(): List<ItemEntity>
 
+    @Query("SELECT name FROM items")
+    suspend fun getAllItemNames(): List<String>
+
     @Query("SELECT * FROM items WHERE id = :itemId")
     suspend fun getItemById(itemId: Long): ItemEntity?
 
