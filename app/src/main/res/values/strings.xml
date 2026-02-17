@@ -87,6 +87,9 @@
     <string name="error_backup_export">Failed to export backup</string>
     <string name="error_backup_import">Failed to import backup</string>
     <string name="error_invalid_backup">Invalid backup file</string>
+    <string
+        name="error_legacy_backup"
+    >Backup too old, migration not supported</string>
     <string name="all_items_activated">All items activated</string>
     <string name="all_items_deactivated">All items marked as done</string>
     <string name="store_added">Store added</string>

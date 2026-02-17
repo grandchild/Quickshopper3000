@@ -59,6 +59,13 @@ data class StoreItemOrderEntity(
     @ColumnInfo(name = "item_id") val itemId: Long,
     @ColumnInfo(name = "sort_order") val sortOrder: Int
 )
+
+@Entity(tableName = "item_add_history")
+data class ItemAddHistoryEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @ColumnInfo(name = "item_id") val itemId: Long,
+    @ColumnInfo(name = "added_at") val addedAt: Long
+)
 ```
 
 ## Application Architecture
@@ -196,6 +203,9 @@ Store in default shared preferences:
 - `show_done_items_mode`: String ("none"|"recent"|"all", default "none")
 - `recent_done_minutes`: Int (default 60, threshold for "recent" mode)
 - `flush_recently_done_at`: Long? (timestamp for "flush recently done" action; supersedes minutes threshold while fresher)
+- `history_days`: Int (default 183)
+- `mistake_done_seconds`: Int (default 20)
+- `reactivate_min_seconds`: Int (default 3600)
 
 ### Room Configuration
 ```kotlin
@@ -205,17 +215,17 @@ Store in default shared preferences:
         ItemStateEntity::class,
         StoreEntity::class,
         StoreItemUnavailabilityEntity::class,
-        StoreItemOrderEntity::class
+        StoreItemOrderEntity::class,
+        ItemAddHistoryEntity::class
     ],
-    version = 2,
-    autoMigrations = [AutoMigration(from = 1, to = 2)]
+    version = 3
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun itemDao(): ItemDao
     abstract fun storeDao(): StoreDao
-    abstract fun orderDao(): OrderDao
 }
 ```
+Room builder uses explicit `Migration(2, 3)` via `addMigrations(...)` and does not use destructive fallback.
 
 ## State Management
 

@@ -1,8 +1,10 @@
 package org.effekthasch.quickshopper3k.util
 
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.effekthasch.quickshopper3k.data.local.AppDatabase
 import org.json.JSONObject
 import java.io.File
 import java.io.FileInputStream
@@ -90,19 +92,30 @@ class BackupManager(private val context: Context) {
                 return@withContext Result.failure(IllegalArgumentException("Invalid backup file"))
             }
 
+            val dbVersion = readDatabaseUserVersion(dbFile)
+            if (dbVersion != null && dbVersion < 3) {
+                tempDir.deleteRecursively()
+                return@withContext Result.failure(LegacyBackupException())
+            }
+
+            AppDatabase.closeDatabase()
             val targetDbFile = context.getDatabasePath("quickshopper3k_database")
             dbFile.copyTo(targetDbFile, overwrite = true)
 
             val shmFile = File(tempDir, "database.db-shm")
+            val targetShmFile = File(targetDbFile.absolutePath + "-shm")
             if (shmFile.exists()) {
-                val targetShmFile = File(targetDbFile.absolutePath + "-shm")
                 shmFile.copyTo(targetShmFile, overwrite = true)
+            } else if (targetShmFile.exists()) {
+                targetShmFile.delete()
             }
 
             val walFile = File(tempDir, "database.db-wal")
+            val targetWalFile = File(targetDbFile.absolutePath + "-wal")
             if (walFile.exists()) {
-                val targetWalFile = File(targetDbFile.absolutePath + "-wal")
                 walFile.copyTo(targetWalFile, overwrite = true)
+            } else if (targetWalFile.exists()) {
+                targetWalFile.delete()
             }
 
             val settingsJson = settingsFile.readText()
@@ -115,6 +128,22 @@ class BackupManager(private val context: Context) {
             Result.failure(e)
         }
     }
+
+    private fun readDatabaseUserVersion(dbFile: File): Int? {
+        var database: SQLiteDatabase? = null
+        return try {
+            database = SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
+            database.rawQuery("PRAGMA user_version", null).use { cursor ->
+                if (cursor.moveToFirst()) cursor.getInt(0) else null
+            }
+        } catch (e: Exception) {
+            null
+        } finally {
+            database?.close()
+        }
+    }
+
+    class LegacyBackupException : IllegalArgumentException("Legacy backup")
 
     private fun exportSettings(): String {
         val prefs = context.getSharedPreferences("quickshopper3k_prefs", Context.MODE_PRIVATE)

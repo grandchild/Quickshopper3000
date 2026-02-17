@@ -204,6 +204,9 @@ class MainFragment :
         viewModel.setCurrentStore(initialStoreId)
         viewModel.setDoneVisibilityMode(prefsManager.doneVisibilityMode)
         viewModel.setRecentDoneMinutes(prefsManager.recentDoneMinutes)
+        viewModel.setHistoryDays(prefsManager.historyDays)
+        viewModel.setMistakeDoneSeconds(prefsManager.mistakeDoneSeconds)
+        viewModel.setReactivateMinSeconds(prefsManager.reactivateMinSeconds)
         viewModel.setFlushRecentlyDoneAt(prefsManager.flushRecentlyDoneAt)
 
         setupRecyclerView(binding.itemsRecyclerView)
@@ -585,12 +588,20 @@ class MainFragment :
                     Snackbar.make(binding.root, R.string.backup_imported, Snackbar.LENGTH_LONG).show()
                     requireActivity().recreate()
                 }.onFailure { error ->
-                    val message = if (error is IllegalArgumentException) {
-                        R.string.error_invalid_backup
+                    if (error is BackupManager.LegacyBackupException) {
+                        Snackbar.make(
+                            binding.root,
+                            R.string.error_legacy_backup,
+                            Snackbar.LENGTH_SHORT
+                        ).show()
                     } else {
-                        R.string.error_backup_import
+                        val message = if (error is IllegalArgumentException) {
+                            R.string.error_invalid_backup
+                        } else {
+                            R.string.error_backup_import
+                        }
+                        Snackbar.make(binding.root, message, Snackbar.LENGTH_SHORT).show()
                     }
-                    Snackbar.make(binding.root, message, Snackbar.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
                 progressDialog.dismiss()

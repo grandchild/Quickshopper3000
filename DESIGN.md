@@ -78,6 +78,12 @@
         - unsorted items are sorted by item id (i.e. sorted by age because newer items = higher id)
         - duplicate sort indices are not critical (items are sorted next to each other by item id)
           but app logic should prevent this. but don't fail on db layer if app logic fails.
+    - item add history is a relational table (item<->timestamp)
+        - activation is recorded
+        - done within mistake_done_seconds removes the latest history entry
+        - reactivation only counts if last done is older than reactivate_min_seconds
+        - entries older than history_days are pruned
+    - history settings in preferences: history_days, mistake_done_seconds, reactivate_min_seconds
 - main list page visible from lockscreen
 - offline-first
 - open source (CC0)

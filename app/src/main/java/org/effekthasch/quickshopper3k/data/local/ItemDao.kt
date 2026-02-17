@@ -67,6 +67,21 @@ interface ItemDao {
     @Query("DELETE FROM item_states WHERE item_id = :itemId")
     suspend fun deleteItemState(itemId: Long)
 
+    @Insert
+    suspend fun insertItemAddHistory(history: ItemAddHistoryEntity): Long
+
+    @Query("SELECT * FROM item_add_history WHERE item_id = :itemId ORDER BY added_at DESC LIMIT 1")
+    suspend fun getLatestItemAddHistory(itemId: Long): ItemAddHistoryEntity?
+
+    @Query("DELETE FROM item_add_history WHERE id = :historyId")
+    suspend fun deleteItemAddHistoryById(historyId: Long)
+
+    @Query("DELETE FROM item_add_history WHERE item_id = :itemId")
+    suspend fun deleteItemAddHistoryByItemId(itemId: Long)
+
+    @Query("DELETE FROM item_add_history WHERE added_at < :cutoff")
+    suspend fun deleteItemAddHistoryOlderThan(cutoff: Long)
+
     @Transaction
     suspend fun setItemState(itemId: Long, state: String) {
         val now = System.currentTimeMillis()

@@ -27,6 +27,9 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
     private val _searchQuery = MutableLiveData("")
     private val _doneVisibilityMode = MutableLiveData(DoneVisibilityMode.NONE)
     private val _recentDoneMinutes = MutableLiveData(60)
+    private val _historyDays = MutableLiveData(183)
+    private val _mistakeDoneSeconds = MutableLiveData(20)
+    private val _reactivateMinSeconds = MutableLiveData(3600)
     private val _flushRecentlyDoneAt = MutableLiveData<Long?>(null)
     private val _isDragging = MutableLiveData(false)
 
@@ -105,6 +108,12 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         return normalized.replace(COMBINING_MARKS_REGEX, "")
     }
 
+    private fun historyDays(): Int = _historyDays.value ?: 183
+
+    private fun mistakeDoneSeconds(): Int = _mistakeDoneSeconds.value ?: 20
+
+    private fun reactivateMinSeconds(): Int = _reactivateMinSeconds.value ?: 3600
+
     fun hasExactMatch(query: String): Boolean {
         val allItems = items.value ?: return false
         val normalizedQuery = normalizeForSearch(query)
@@ -137,6 +146,18 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         _recentDoneMinutes.value = minutes
     }
 
+    fun setHistoryDays(days: Int) {
+        _historyDays.value = days
+    }
+
+    fun setMistakeDoneSeconds(seconds: Int) {
+        _mistakeDoneSeconds.value = seconds
+    }
+
+    fun setReactivateMinSeconds(seconds: Int) {
+        _reactivateMinSeconds.value = seconds
+    }
+
     fun setFlushRecentlyDoneAt(timestamp: Long?) {
         _flushRecentlyDoneAt.value = timestamp
     }
@@ -151,7 +172,7 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
 
     fun addItem(name: String, onResult: (Result<Long>) -> Unit) {
         viewModelScope.launch {
-            val result = repository.addItem(name.trim())
+            val result = repository.addItem(name.trim(), historyDays())
             onResult(result)
         }
     }
@@ -172,19 +193,37 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
 
     fun activateItem(itemId: Long) {
         viewModelScope.launch {
-            repository.setItemState(itemId, ItemState.ACTIVATED)
+            repository.setItemState(
+                itemId,
+                ItemState.ACTIVATED,
+                historyDays(),
+                mistakeDoneSeconds(),
+                reactivateMinSeconds()
+            )
         }
     }
 
     fun deactivateItem(itemId: Long) {
         viewModelScope.launch {
-            repository.setItemState(itemId, ItemState.DEACTIVATED)
+            repository.setItemState(
+                itemId,
+                ItemState.DEACTIVATED,
+                historyDays(),
+                mistakeDoneSeconds(),
+                reactivateMinSeconds()
+            )
         }
     }
 
     fun postponeItem(itemId: Long) {
         viewModelScope.launch {
-            repository.setItemState(itemId, ItemState.POSTPONED)
+            repository.setItemState(
+                itemId,
+                ItemState.POSTPONED,
+                historyDays(),
+                mistakeDoneSeconds(),
+                reactivateMinSeconds()
+            )
         }
     }
 
@@ -234,21 +273,31 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
                 return@launch
             }
 
-            val result = repository.bulkAddItems(lines)
+            val result = repository.bulkAddItems(lines, historyDays())
             onResult(result)
         }
     }
 
     fun activateAll(onResult: (Result<Unit>) -> Unit) {
         viewModelScope.launch {
-            val result = repository.setAllItemsToState(ItemState.ACTIVATED)
+            val result = repository.setAllItemsToState(
+                ItemState.ACTIVATED,
+                historyDays(),
+                mistakeDoneSeconds(),
+                reactivateMinSeconds()
+            )
             onResult(result)
         }
     }
 
     fun deactivateAll(onResult: (Result<Unit>) -> Unit) {
         viewModelScope.launch {
-            val result = repository.setAllItemsToState(ItemState.DEACTIVATED)
+            val result = repository.setAllItemsToState(
+                ItemState.DEACTIVATED,
+                historyDays(),
+                mistakeDoneSeconds(),
+                reactivateMinSeconds()
+            )
             onResult(result)
         }
     }

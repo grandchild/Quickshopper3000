@@ -49,7 +49,7 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
         viewModel = ViewModelProvider(this, factory)[StoresViewModel::class.java]
 
         recyclerView = binding.recyclerView
-        bottomBarContainer = binding.root as ViewGroup
+        bottomBarContainer = binding.root
         bottomBarInput = EditText(requireContext())
 
         adapter = provideAdapter()
@@ -100,7 +100,7 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
     private fun observeViewModel() {
         viewModel.storeItems.observe(viewLifecycleOwner) { items ->
             applyItems(items)
-            updateEmptyState(items.isEmpty())
+            updateEmptyState()
         }
 
         viewModel.currentStore.observe(viewLifecycleOwner) { _ ->
@@ -118,7 +118,7 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
         }
     }
 
-    private fun updateEmptyState(isEmpty: Boolean) {
+    private fun updateEmptyState() {
         if (prefsManager.currentStoreId == null) {
             binding.emptyStateText.visibility = View.VISIBLE
             binding.emptyStateText.text = getString(R.string.no_stores)
@@ -272,14 +272,6 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
     fun showStoreSelectionDialog() {
         val stores = viewModel.allStores.value ?: return
         if (stores.isEmpty()) return
-
-        val storeNames = stores.map { store ->
-            val prefix = if (store.specialtyStore) "★ " else ""
-            prefix + store.name
-        }.toTypedArray()
-
-        val currentStoreId = prefsManager.currentStoreId
-        val currentIndex = stores.indexOfFirst { it.id == currentStoreId }
 
         val anchorView = (activity as? org.effekthasch.quickshopper3k.MainActivity)
             ?.findViewById<android.view.View>(org.effekthasch.quickshopper3k.R.id.storeSelectorButton)

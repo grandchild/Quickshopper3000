@@ -105,6 +105,24 @@ class PreferencesManager(context: Context) {
             prefs.edit().putInt(KEY_RECENT_DONE_MINUTES, value).apply()
         }
 
+    var historyDays: Int
+        get() = prefs.getInt(KEY_HISTORY_DAYS, 183)
+        set(value) {
+            prefs.edit().putInt(KEY_HISTORY_DAYS, value).apply()
+        }
+
+    var mistakeDoneSeconds: Int
+        get() = prefs.getInt(KEY_MISTAKE_DONE_SECONDS, 20)
+        set(value) {
+            prefs.edit().putInt(KEY_MISTAKE_DONE_SECONDS, value).apply()
+        }
+
+    var reactivateMinSeconds: Int
+        get() = prefs.getInt(KEY_REACTIVATE_MIN_SECONDS, 3600)
+        set(value) {
+            prefs.edit().putInt(KEY_REACTIVATE_MIN_SECONDS, value).apply()
+        }
+
     var flushRecentlyDoneAt: Long?
         get() {
             val value = prefs.getLong(KEY_FLUSH_RECENTLY_DONE_AT, -1L)
@@ -129,6 +147,9 @@ class PreferencesManager(context: Context) {
         private const val KEY_DONE_VISIBILITY_MODE = "done_visibility_mode"
         private const val KEY_RECENT_DONE_MINUTES = "recent_done_minutes"
         private const val KEY_FLUSH_RECENTLY_DONE_AT = "flush_recently_done_at"
+        private const val KEY_HISTORY_DAYS = "history_days"
+        private const val KEY_MISTAKE_DONE_SECONDS = "mistake_done_seconds"
+        private const val KEY_REACTIVATE_MIN_SECONDS = "reactivate_min_seconds"
     }
 }
 

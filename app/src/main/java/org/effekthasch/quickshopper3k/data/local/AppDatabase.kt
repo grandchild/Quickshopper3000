@@ -11,9 +11,10 @@ import androidx.room.RoomDatabase
         ItemStateEntity::class,
         StoreEntity::class,
         StoreItemUnavailabilityEntity::class,
-        StoreItemOrderEntity::class
+        StoreItemOrderEntity::class,
+        ItemAddHistoryEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -31,11 +32,15 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "quickshopper3k_database"
                 )
-                    .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
                 instance
             }
+        }
+
+        fun closeDatabase() {
+            INSTANCE?.close()
+            INSTANCE = null
         }
     }
 }
