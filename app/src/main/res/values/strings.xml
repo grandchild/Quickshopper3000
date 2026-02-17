@@ -22,6 +22,7 @@
     <string name="import_items">Import items</string>
     <string name="import_backup">Import backup</string>
     <string name="export_backup">Export backup</string>
+    <string name="share_active_items">Share active items</string>
     <string name="activate_all">all</string>
     <string name="deactivate_all">all</string>
 
@@ -93,6 +94,7 @@
     <string name="store_deleted">Store deleted</string>
     <string name="error_empty_name">Name cannot be empty</string>
     <string name="error_occurred">An error occurred</string>
+    <string name="share_active_items_empty">No active items to share</string>
 
     <!-- Empty states -->
     <string name="no_items">No items yet. Add one to get started!</string>

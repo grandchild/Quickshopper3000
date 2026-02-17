@@ -153,6 +153,11 @@ class MainFragment :
                 true
             }
 
+            R.id.action_share_active_items -> {
+                shareActiveItems()
+                true
+            }
+
             R.id.action_settings -> {
                 true
             }
@@ -488,6 +493,24 @@ class MainFragment :
             .show()
 
         dialogBinding.importTextInput.requestFocus()
+    }
+
+    private fun shareActiveItems() {
+        val items = viewModel.filteredItems.value.orEmpty()
+            .filter { it.item.state == ItemState.ACTIVATED }
+
+        if (items.isEmpty()) {
+            Snackbar.make(binding.root, R.string.share_active_items_empty, Snackbar.LENGTH_SHORT).show()
+            return
+        }
+
+        val text = items.joinToString(separator = "\n") { it.item.name }
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, text)
+        }
+
+        startActivity(Intent.createChooser(shareIntent, getString(R.string.share_active_items)))
     }
 
     private fun exportBackup() {

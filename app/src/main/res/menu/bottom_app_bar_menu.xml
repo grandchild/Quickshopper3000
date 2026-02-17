@@ -55,6 +55,12 @@
     />
 
     <item
+        android:id="@+id/action_share_active_items"
+        android:title="@string/share_active_items"
+        android:orderInCategory="100"
+    />
+
+    <item
         android:id="@+id/action_settings"
         android:title="@string/settings"
         android:orderInCategory="100"

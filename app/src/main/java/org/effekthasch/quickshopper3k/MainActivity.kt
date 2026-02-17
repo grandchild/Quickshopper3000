@@ -91,6 +91,7 @@ class MainActivity : AppCompatActivity() {
             popup.menu.findItem(R.id.action_activate_all)?.isVisible = currentPage == 1
             popup.menu.findItem(R.id.action_deactivate_all)?.isVisible = currentPage == 1
             popup.menu.findItem(R.id.action_flush_recently_done)?.isVisible = currentPage == 1
+            popup.menu.findItem(R.id.action_share_active_items)?.isVisible = currentPage == 1
 
             popup.setOnMenuItemClickListener { item ->
                 onOptionsItemSelected(item)
