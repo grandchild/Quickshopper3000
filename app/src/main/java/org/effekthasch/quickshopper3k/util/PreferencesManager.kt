@@ -4,18 +4,15 @@ import android.content.Context
 import android.content.SharedPreferences
 
 enum class DoneVisibilityMode {
-    NONE,
     RECENT,
     ALL;
 
     fun next(): DoneVisibilityMode = when (this) {
-        NONE -> RECENT
         RECENT -> ALL
-        ALL -> NONE
+        ALL -> RECENT
     }
 
     fun label(): String = when (this) {
-        NONE -> "todo"
         RECENT -> "recent"
         ALL -> "all"
     }
@@ -24,7 +21,7 @@ enum class DoneVisibilityMode {
         fun fromString(value: String): DoneVisibilityMode = when (value.lowercase()) {
             "recent" -> RECENT
             "all" -> ALL
-            else -> NONE
+            else -> RECENT
         }
     }
 }
@@ -77,10 +74,9 @@ class PreferencesManager(context: Context) {
             prefs.edit().putBoolean(KEY_IS_LEFT_HANDED, value).apply()
         }
 
-
     var doneVisibilityMode: DoneVisibilityMode
         get() {
-            val value = prefs.getString(KEY_DONE_VISIBILITY_MODE, "none") ?: "none"
+            val value = prefs.getString(KEY_DONE_VISIBILITY_MODE, "recent") ?: "recent"
             return DoneVisibilityMode.fromString(value)
         }
         set(value) {

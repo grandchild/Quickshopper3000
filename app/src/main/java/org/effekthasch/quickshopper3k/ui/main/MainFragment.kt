@@ -341,11 +341,11 @@ class MainFragment :
 
     fun cycleDoneVisibilityMode() {
         viewModel.cycleDoneVisibilityMode()
-        prefsManager.doneVisibilityMode = viewModel.doneVisibilityMode.value ?: DoneVisibilityMode.NONE
+        prefsManager.doneVisibilityMode = viewModel.doneVisibilityMode.value ?: DoneVisibilityMode.RECENT
     }
 
     fun getDoneVisibilityMode(): DoneVisibilityMode {
-        return viewModel.doneVisibilityMode.value ?: DoneVisibilityMode.NONE
+        return viewModel.doneVisibilityMode.value ?: DoneVisibilityMode.RECENT
     }
 
     private fun updateStoreMenuTitle() {

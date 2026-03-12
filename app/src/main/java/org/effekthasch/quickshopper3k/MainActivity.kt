@@ -108,7 +108,7 @@ class MainActivity : AppCompatActivity() {
         if (currentPage == 1) {
             binding.doneVisibilityButton.visibility = android.view.View.VISIBLE
             val mainFragment = getCurrentFragment() as? org.effekthasch.quickshopper3k.ui.main.MainFragment
-            val mode = mainFragment?.getDoneVisibilityMode() ?: DoneVisibilityMode.NONE
+            val mode = mainFragment?.getDoneVisibilityMode() ?: DoneVisibilityMode.RECENT
             binding.doneVisibilityButton.text = mode.label()
         } else {
             binding.doneVisibilityButton.visibility = android.view.View.GONE

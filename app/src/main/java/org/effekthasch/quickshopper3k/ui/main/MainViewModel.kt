@@ -36,7 +36,7 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
 
     private val _currentStoreId = MutableStateFlow<Long?>(null)
     private val _searchQuery = MutableLiveData("")
-    private val _doneVisibilityMode = MutableLiveData(DoneVisibilityMode.NONE)
+    private val _doneVisibilityMode = MutableLiveData(DoneVisibilityMode.RECENT)
     private val _recentDoneMinutes = MutableLiveData(60)
     private val _historyDays = MutableLiveData(183)
     private val _mistakeDoneSeconds = MutableLiveData(20)
@@ -54,7 +54,7 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         fun update() {
             val allItems = items.value ?: emptyList()
             val query = _searchQuery.value ?: ""
-            val visibilityMode = _doneVisibilityMode.value ?: DoneVisibilityMode.NONE
+            val visibilityMode = _doneVisibilityMode.value ?: DoneVisibilityMode.RECENT
             val recentMinutes = _recentDoneMinutes.value ?: 60
             val flushAt = _flushRecentlyDoneAt.value
             val isDragging = _isDragging.value ?: false
@@ -171,7 +171,7 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
     }
 
     fun cycleDoneVisibilityMode() {
-        val current = _doneVisibilityMode.value ?: DoneVisibilityMode.NONE
+        val current = _doneVisibilityMode.value ?: DoneVisibilityMode.RECENT
         _doneVisibilityMode.value = current.next()
     }
 
