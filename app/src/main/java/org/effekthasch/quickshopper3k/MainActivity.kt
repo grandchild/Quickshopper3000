@@ -7,6 +7,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.view.menu.MenuBuilder
 
 import androidx.fragment.app.Fragment
 import androidx.viewpager2.widget.ViewPager2
@@ -73,8 +74,18 @@ class MainActivity : AppCompatActivity() {
             val popup = android.widget.PopupMenu(this, view)
             popup.menuInflater.inflate(R.menu.bottom_app_bar_menu, popup.menu)
 
-
-
+            val menu = popup.menu
+            if (menu is MenuBuilder) {
+                menu.setOptionalIconsVisible(true)
+            } else {
+                runCatching {
+                    val helperField = popup.javaClass.getDeclaredField("mPopup")
+                    helperField.isAccessible = true
+                    val menuHelper = helperField.get(popup)
+                    menuHelper?.javaClass?.getDeclaredMethod("setForceShowIcon", Boolean::class.java)
+                        ?.invoke(menuHelper, true)
+                }
+            }
 
             popup.menu.findItem(R.id.action_store_selector)?.isVisible = false
             popup.menu.findItem(R.id.action_select_store)?.isVisible = false
