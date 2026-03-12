@@ -1,9 +1,11 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<?xml version="1.0" encoding="utf-8" ?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:padding="16dp"
+>
 
     <EditText
         android:id="@+id/store_name_input"
@@ -12,13 +14,16 @@
         android:hint="@string/store_name"
         android:inputType="text"
         android:imeOptions="actionDone"
-        android:maxLines="1" />
+        android:importantForAutofill="no"
+        android:maxLines="1"
+    />
 
     <CheckBox
         android:id="@+id/specialty_store_checkbox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="@string/specialty_store" />
+        android:text="@string/specialty_store"
+    />
 
 </LinearLayout>

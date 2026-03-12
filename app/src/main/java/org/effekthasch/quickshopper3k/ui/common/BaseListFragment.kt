@@ -74,9 +74,10 @@ abstract class BaseListFragment<T> : Fragment() {
             }
         }
 
-        recyclerView.setOnTouchListener { _, _ ->
+        recyclerView.setOnTouchListener { view, _ ->
             if (bottomBarContainer.visibility == View.VISIBLE) {
                 bottomBarInput.clearFocus()
+                view.performClick()
                 true
             } else {
                 false

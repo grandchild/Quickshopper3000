@@ -291,9 +291,10 @@ class MainFragment :
             }
         }
 
-        binding.itemsRecyclerView.setOnTouchListener { _, _ ->
+        binding.itemsRecyclerView.setOnTouchListener { view, _ ->
             if (binding.searchContainer.visibility == View.VISIBLE) {
                 binding.searchInput.clearFocus()
+                view.performClick()
                 true
             } else {
                 false
@@ -387,17 +388,18 @@ class MainFragment :
     fun getStoreMenuTitle(): String {
         val currentStoreId = viewModel.currentStoreId.value
         val stores = viewModel.stores.value
+        val indicator = getString(R.string.store_indicator)
 
         if (currentStoreId == null || stores == null) {
-            return "◉"
+            return indicator
         }
 
         if (currentStoreId == 0L) {
-            return "◉"
+            return indicator
         }
 
         val store = stores.find { it.id == currentStoreId }
-        return store?.name ?: "◉"
+        return store?.name ?: indicator
     }
 
     private fun updateSearchActiveBar() {
@@ -567,7 +569,7 @@ class MainFragment :
         if (names.isEmpty()) {
             Snackbar.make(
                 binding.root,
-                getString(R.string.items_imported, 0),
+                resources.getQuantityString(R.plurals.items_imported, 0, 0),
                 Snackbar.LENGTH_SHORT
             ).show()
             onResult?.invoke(Result.success(0))
@@ -585,7 +587,7 @@ class MainFragment :
             result.onSuccess { count ->
                 Snackbar.make(
                     binding.root,
-                    getString(R.string.items_imported, count),
+                    resources.getQuantityString(R.plurals.items_imported, count, count),
                     Snackbar.LENGTH_SHORT
                 ).show()
             }.onFailure {

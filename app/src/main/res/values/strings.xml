@@ -61,9 +61,14 @@
     <!-- Store selection -->
 
     <string name="select_store">Select store</string>
+    <string name="store_indicator">◉</string>
+    <string name="done_visibility_todo">todo</string>
 
     <!-- Messages -->
-    <string name="items_imported">%1$d items imported</string>
+    <plurals name="items_imported">
+        <item quantity="one">%1$d item imported</item>
+        <item quantity="other">%1$d items imported</item>
+    </plurals>
     <string name="importing_items">Importing items…</string>
     <string name="backup_exported">Backup exported</string>
     <string name="backup_imported">Backup imported successfully</string>

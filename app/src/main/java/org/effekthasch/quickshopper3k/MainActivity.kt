@@ -7,6 +7,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
 import androidx.appcompat.app.AppCompatActivity
+
 import androidx.fragment.app.Fragment
 import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.bottomappbar.BottomAppBar
@@ -27,6 +28,8 @@ class MainActivity : AppCompatActivity() {
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+
 
         prefsManager = PreferencesManager(this)
 
@@ -70,16 +73,7 @@ class MainActivity : AppCompatActivity() {
             val popup = android.widget.PopupMenu(this, view)
             popup.menuInflater.inflate(R.menu.bottom_app_bar_menu, popup.menu)
 
-            try {
-                val field = popup.javaClass.getDeclaredField("mPopup")
-                field.isAccessible = true
-                val menuPopupHelper = field.get(popup)
-                val classPopupHelper = Class.forName(menuPopupHelper.javaClass.name)
-                val setForceIcons = classPopupHelper.getMethod("setForceShowIcon", Boolean::class.javaPrimitiveType)
-                setForceIcons.invoke(menuPopupHelper, true)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+
 
 
             popup.menu.findItem(R.id.action_store_selector)?.isVisible = false
@@ -137,13 +131,15 @@ class MainActivity : AppCompatActivity() {
             0 -> {
                 binding.storeSelectorButton.visibility = android.view.View.VISIBLE
                 val storesFragment = getCurrentFragment() as? org.effekthasch.quickshopper3k.ui.stores.StoresFragment
-                binding.storeSelectorButton.text = storesFragment?.getCurrentStoreName() ?: "◉"
+                binding.storeSelectorButton.text = storesFragment?.getCurrentStoreName()
+                    ?: getString(R.string.store_indicator)
             }
 
             1 -> {
                 binding.storeSelectorButton.visibility = android.view.View.VISIBLE
                 val mainFragment = getCurrentFragment() as? org.effekthasch.quickshopper3k.ui.main.MainFragment
-                binding.storeSelectorButton.text = mainFragment?.getStoreMenuTitle() ?: "◉"
+                binding.storeSelectorButton.text = mainFragment?.getStoreMenuTitle()
+                    ?: getString(R.string.store_indicator)
             }
 
             else -> {
@@ -178,8 +174,11 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        binding.bottomAppBar.setOnTouchListener { _, event ->
-            gestureDetector.onTouchEvent(event)
+        binding.bottomAppBar.setOnTouchListener { view, event ->
+            val handled = gestureDetector.onTouchEvent(event)
+            if (handled && event.action == MotionEvent.ACTION_UP) {
+                view.performClick()
+            }
             false
         }
     }

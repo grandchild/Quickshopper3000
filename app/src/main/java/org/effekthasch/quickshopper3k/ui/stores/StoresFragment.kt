@@ -263,10 +263,11 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
     }
 
     fun getCurrentStoreName(): String {
-        val currentStoreId = prefsManager.currentStoreId ?: return "◉"
-        val stores = viewModel.allStores.value ?: return "◉"
+        val indicator = getString(R.string.store_indicator)
+        val currentStoreId = prefsManager.currentStoreId ?: return indicator
+        val stores = viewModel.allStores.value ?: return indicator
         val store = stores.find { it.id == currentStoreId }
-        return store?.name ?: "◉"
+        return store?.name ?: indicator
     }
 
     fun showStoreSelectionDialog() {
