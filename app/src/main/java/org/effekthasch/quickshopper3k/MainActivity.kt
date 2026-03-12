@@ -1,5 +1,6 @@
 package org.effekthasch.quickshopper3k
 
+import android.os.Build
 import android.os.Bundle
 import android.view.GestureDetector
 import android.view.Menu
@@ -204,12 +205,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateLockscreenFlags(position: Int) {
-        if (position == 1) {
-            setShowWhenLocked(true)
-            setTurnScreenOn(true)
+        val enable = position == 1
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(enable)
+            setTurnScreenOn(enable)
         } else {
-            setShowWhenLocked(false)
-            setTurnScreenOn(false)
+            if (enable) {
+                window.addFlags(
+                    android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                            android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                )
+            } else {
+                window.clearFlags(
+                    android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                            android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                )
+            }
         }
     }
 

@@ -77,18 +77,6 @@ class PreferencesManager(context: Context) {
             prefs.edit().putBoolean(KEY_IS_LEFT_HANDED, value).apply()
         }
 
-    var textScale: TextScale
-        get() {
-            val value = prefs.getString(KEY_TEXT_SCALE, "normal") ?: "normal"
-            return when (value) {
-                "compact" -> TextScale.COMPACT
-                "large" -> TextScale.LARGE
-                else -> TextScale.NORMAL
-            }
-        }
-        set(value) {
-            prefs.edit().putString(KEY_TEXT_SCALE, value.name.lowercase()).apply()
-        }
 
     var doneVisibilityMode: DoneVisibilityMode
         get() {
@@ -143,7 +131,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_CURRENT_STORE_ID = "current_store_id"
         private const val KEY_SELECTED_SHOP_STORE_IDS = "selected_shop_store_ids"
         private const val KEY_IS_LEFT_HANDED = "is_left_handed"
-        private const val KEY_TEXT_SCALE = "text_scale"
+
         private const val KEY_DONE_VISIBILITY_MODE = "done_visibility_mode"
         private const val KEY_RECENT_DONE_MINUTES = "recent_done_minutes"
         private const val KEY_FLUSH_RECENTLY_DONE_AT = "flush_recently_done_at"
@@ -151,10 +139,4 @@ class PreferencesManager(context: Context) {
         private const val KEY_MISTAKE_DONE_SECONDS = "mistake_done_seconds"
         private const val KEY_REACTIVATE_MIN_SECONDS = "reactivate_min_seconds"
     }
-}
-
-enum class TextScale(val multiplier: Float) {
-    COMPACT(0.9f),
-    NORMAL(1.0f),
-    LARGE(1.2f)
 }
