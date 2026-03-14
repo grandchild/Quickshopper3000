@@ -11,6 +11,7 @@ import org.effekthasch.quickshopper3k.domain.model.Item
 import org.effekthasch.quickshopper3k.domain.model.ItemState
 import org.effekthasch.quickshopper3k.domain.model.Store
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
+import org.effekthasch.quickshopper3k.util.Ulid
 
 class ShoppingRepository(private val database: AppDatabase) {
     private val itemDao = database.itemDao()
@@ -34,6 +35,7 @@ class ShoppingRepository(private val database: AppDatabase) {
             items.map { itemWithState ->
                 Item(
                     id = itemWithState.id,
+                    uuid = itemWithState.uuid,
                     name = itemWithState.name,
                     state = ItemState.fromString(itemWithState.state),
                     createdAt = itemWithState.created_at,
@@ -73,6 +75,7 @@ class ShoppingRepository(private val database: AppDatabase) {
                 StoreItem(
                     item = Item(
                         id = itemWithStoreInfo.id,
+                        uuid = itemWithStoreInfo.uuid,
                         name = itemWithStoreInfo.name,
                         state = ItemState.fromString(itemWithStoreInfo.state),
                         createdAt = itemWithStoreInfo.created_at,
@@ -94,6 +97,7 @@ class ShoppingRepository(private val database: AppDatabase) {
             val now = System.currentTimeMillis()
             val id = itemDao.insertItem(
                 ItemEntity(
+                    uuid = Ulid.generate(),
                     name = name,
                     createdAt = now
                 )
@@ -196,17 +200,23 @@ class ShoppingRepository(private val database: AppDatabase) {
 
     fun getAllStores(): Flow<List<Store>> {
         return storeDao.getAllStores().map { stores ->
-            stores.map { Store(it.id, it.name, it.specialtyStore) }
+            stores.map { Store(it.id, it.uuid, it.name, it.specialtyStore) }
         }
     }
 
     suspend fun getStoreById(storeId: Long): Store? {
-        return storeDao.getStoreById(storeId)?.let { Store(it.id, it.name, it.specialtyStore) }
+        return storeDao.getStoreById(storeId)?.let { Store(it.id, it.uuid, it.name, it.specialtyStore) }
     }
 
     suspend fun addStore(name: String, specialtyStore: Boolean = false): Result<Long> {
         return try {
-            val id = storeDao.insertStore(StoreEntity(name = name, specialtyStore = specialtyStore))
+            val id = storeDao.insertStore(
+                StoreEntity(
+                    uuid = Ulid.generate(),
+                    name = name,
+                    specialtyStore = specialtyStore
+                )
+            )
 
             if (specialtyStore) {
                 val allItems = itemDao.getAllItems()
@@ -293,6 +303,7 @@ class ShoppingRepository(private val database: AppDatabase) {
             val timestamp = System.currentTimeMillis()
             val entities = names.map { name ->
                 ItemEntity(
+                    uuid = Ulid.generate(),
                     name = name,
                     createdAt = timestamp
                 )

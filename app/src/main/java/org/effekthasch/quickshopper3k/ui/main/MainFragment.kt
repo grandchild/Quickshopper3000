@@ -365,7 +365,7 @@ class MainFragment :
     fun showStoreSelectionDropdown(menuItem: android.view.MenuItem?) {
         val stores = viewModel.stores.value ?: return
         val allStores = listOf(
-            org.effekthasch.quickshopper3k.domain.model.Store(0L, "All items", false)
+            org.effekthasch.quickshopper3k.domain.model.Store(0L, "", "All items", false)
         ) + stores
 
         val anchorView = menuItem?.actionView
