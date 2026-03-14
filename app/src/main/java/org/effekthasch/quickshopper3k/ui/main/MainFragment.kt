@@ -56,13 +56,13 @@ class MainFragment :
     override fun provideAdapter() = MainItemsAdapter(
         onItemClick = {
             if (binding.searchContainer.visibility == View.VISIBLE) {
-                binding.searchInput.clearFocus()
+                dismissSearch()
             }
             false
         },
         onItemLongClick = { storeItem ->
             if (binding.searchContainer.visibility == View.VISIBLE) {
-                binding.searchInput.clearFocus()
+                dismissSearch()
             } else {
                 showEditItemDialog(storeItem)
             }
@@ -72,10 +72,23 @@ class MainFragment :
 
     override fun onSwipeLeft(item: StoreItem) {
         viewModel.handleSwipeLeft(item.item)
+        reselectSearchAfterSwipe()
     }
 
     override fun onSwipeRight(item: StoreItem) {
         viewModel.handleSwipeRight(item.item)
+        reselectSearchAfterSwipe()
+    }
+
+    private fun reselectSearchAfterSwipe() {
+        if (binding.searchContainer.visibility == View.VISIBLE) {
+            binding.searchInput.post {
+                binding.searchInput.requestFocus()
+                binding.searchInput.selectAll()
+                val imm = getSystemService(requireContext(), InputMethodManager::class.java)
+                imm?.showSoftInput(binding.searchInput, InputMethodManager.SHOW_IMPLICIT)
+            }
+        }
     }
 
     override fun persistOrder(items: List<StoreItem>) {
@@ -111,7 +124,7 @@ class MainFragment :
 
     override fun onFabClick() {
         if (binding.searchContainer.visibility == View.VISIBLE) {
-            binding.searchInput.clearFocus()
+            dismissSearch()
         } else {
             showInlineSearch()
         }
@@ -266,17 +279,13 @@ class MainFragment :
                     if (query.isNotBlank() && !viewModel.hasExactMatch(query)) {
                         addCurrentSearchAsItem()
                     } else {
-                        binding.searchInput.clearFocus()
-                        hideInlineSearch()
-                        updateSearchActiveBar()
+                        dismissSearch()
                     }
                     true
                 }
 
                 EditorInfo.IME_ACTION_SEARCH -> {
-                    binding.searchInput.clearFocus()
-                    hideInlineSearch()
-                    updateSearchActiveBar()
+                    dismissSearch()
                     true
                 }
 
@@ -284,16 +293,13 @@ class MainFragment :
             }
         }
 
-        binding.searchInput.setOnFocusChangeListener { _, hasFocus ->
-            if (!hasFocus) {
-                hideInlineSearch()
-                updateSearchActiveBar()
-            }
-        }
+        binding.searchInput.setOnFocusChangeListener { _, _ -> }
 
-        binding.itemsRecyclerView.setOnTouchListener { view, _ ->
-            if (binding.searchContainer.visibility == View.VISIBLE) {
-                binding.searchInput.clearFocus()
+        binding.itemsRecyclerView.setOnTouchListener { view, event ->
+            if (binding.searchContainer.visibility == View.VISIBLE &&
+                event.action == android.view.MotionEvent.ACTION_DOWN
+            ) {
+                dismissSearch()
                 view.performClick()
                 true
             } else {
@@ -432,6 +438,14 @@ class MainFragment :
         val imm = getSystemService(requireContext(), InputMethodManager::class.java)
         imm?.hideSoftInputFromWindow(binding.searchInput.windowToken, 0)
         (activity as? MainActivity)?.showBottomBar()
+    }
+
+    private fun dismissSearch() {
+        viewModel.setSearchQuery("")
+        binding.searchInput.setText("")
+        binding.searchInput.clearFocus()
+        hideInlineSearch()
+        updateSearchActiveBar()
     }
 
     private fun showEditItemDialog(storeItem: StoreItem) {
