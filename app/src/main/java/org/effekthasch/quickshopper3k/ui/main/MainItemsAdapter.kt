@@ -180,6 +180,13 @@ class MainItemsAdapter(
         fun bind(storeItem: StoreItem, position: Int) {
             binding.itemNameText.text = storeItem.item.name
 
+            if (storeItem.item.amount > 1) {
+                binding.itemAmountText.text = storeItem.item.amount.toString()
+                binding.itemAmountText.visibility = View.VISIBLE
+            } else {
+                binding.itemAmountText.visibility = View.GONE
+            }
+
             when (storeItem.item.state) {
                 ItemState.ACTIVATED -> {
                     binding.itemStateIcon.visibility = View.GONE

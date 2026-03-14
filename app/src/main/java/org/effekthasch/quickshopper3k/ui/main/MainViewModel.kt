@@ -292,6 +292,14 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         }
     }
 
+    fun updateItemAmount(itemId: Long, amount: Int, onResult: (Result<Unit>) -> Unit) {
+        val clamped = amount.coerceAtLeast(1)
+        viewModelScope.launch {
+            val result = repository.updateItemAmount(itemId, clamped)
+            onResult(result)
+        }
+    }
+
     fun isStoreSelected(): Boolean {
         val storeId = _currentStoreId.value
         return storeId != null && storeId != 0L

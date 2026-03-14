@@ -30,7 +30,8 @@
 data class ItemEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     @ColumnInfo(name = "name", collate = ColumnInfo.NOCASE) val name: String,
-    @ColumnInfo(name = "created_at") val createdAt: Long
+    @ColumnInfo(name = "created_at") val createdAt: Long,
+    @ColumnInfo(name = "amount", defaultValue = "1") val amount: Int = 1
 )
 
 @Entity(tableName = "item_states", primaryKeys = ["item_id"])
@@ -218,14 +219,14 @@ Store in default shared preferences:
         StoreItemOrderEntity::class,
         ItemAddHistoryEntity::class
     ],
-    version = 3
+    version = 5
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun itemDao(): ItemDao
     abstract fun storeDao(): StoreDao
 }
 ```
-Room builder uses explicit `Migration(2, 3)` via `addMigrations(...)` and does not use destructive fallback.
+No migrations registered. Fresh installs start at version 5 with the current schema.
 
 ## State Management
 

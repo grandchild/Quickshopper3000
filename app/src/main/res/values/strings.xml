@@ -32,6 +32,7 @@
     <string name="context_menu_edit">Edit</string>
     <string name="context_menu_unavailable">Unavailable in store</string>
     <string name="context_menu_available">Available in store</string>
+    <string name="context_menu_amount">Amount</string>
 
 
     <string name="import_items_title">Import Items</string>

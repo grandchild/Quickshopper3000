@@ -100,6 +100,9 @@ interface ItemDao {
         return insertItems(items)
     }
 
+    @Query("UPDATE items SET amount = :amount WHERE id = :itemId")
+    suspend fun updateItemAmount(itemId: Long, amount: Int)
+
     @Query("DELETE FROM item_states")
     suspend fun deleteAllItemStates()
 
@@ -124,6 +127,7 @@ data class ItemWithState(
     val id: Long,
     val name: String,
     val created_at: Long,
+    val amount: Int,
     val state: String,
     val state_changed_at: Long?,
     val sort_order: Int?
@@ -133,6 +137,7 @@ data class ItemWithStoreInfo(
     val id: Long,
     val name: String,
     val created_at: Long,
+    val amount: Int,
     val state: String,
     val state_changed_at: Long?,
     val sort_order: Int?,

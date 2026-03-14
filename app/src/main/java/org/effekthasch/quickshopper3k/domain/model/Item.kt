@@ -5,5 +5,6 @@ data class Item(
     val name: String,
     val state: ItemState,
     val createdAt: Long,
-    val stateChangedAt: Long? = null
+    val stateChangedAt: Long? = null,
+    val amount: Int = 1
 )

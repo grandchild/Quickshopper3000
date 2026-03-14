@@ -36,4 +36,58 @@
         android:background="?attr/selectableItemBackground"
     />
 
+    <LinearLayout
+        android:id="@+id/contextMenuAmountRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+    >
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/context_menu_amount"
+            android:textSize="14sp"
+            android:textColor="?android:attr/textColorPrimary"
+        />
+
+        <TextView
+            android:id="@+id/contextMenuAmountMinus"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:gravity="center"
+            android:text="−"
+            android:textSize="18sp"
+            android:textColor="?android:attr/textColorPrimary"
+            android:background="?attr/selectableItemBackgroundBorderless"
+        />
+
+        <TextView
+            android:id="@+id/contextMenuAmountValue"
+            android:layout_width="32dp"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textSize="14sp"
+            android:textColor="?android:attr/textColorPrimary"
+        />
+
+        <TextView
+            android:id="@+id/contextMenuAmountPlus"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:gravity="center"
+            android:text="+"
+            android:textSize="18sp"
+            android:textColor="?android:attr/textColorPrimary"
+            android:background="?attr/selectableItemBackgroundBorderless"
+        />
+
+    </LinearLayout>
+
 </LinearLayout>

@@ -466,6 +466,43 @@ class MainFragment :
             menuBinding.contextMenuUnavailable.visibility = View.GONE
         }
 
+        var currentAmount = storeItem.item.amount
+
+        fun updateAmountUi() {
+            if (currentAmount > 1) {
+                menuBinding.contextMenuAmountMinus.visibility = View.VISIBLE
+                menuBinding.contextMenuAmountValue.visibility = View.VISIBLE
+                menuBinding.contextMenuAmountValue.text = currentAmount.toString()
+            } else {
+                menuBinding.contextMenuAmountMinus.visibility = View.INVISIBLE
+                menuBinding.contextMenuAmountValue.visibility = View.INVISIBLE
+            }
+        }
+
+        updateAmountUi()
+
+        menuBinding.contextMenuAmountPlus.setOnClickListener {
+            currentAmount++
+            updateAmountUi()
+            viewModel.updateItemAmount(storeItem.item.id, currentAmount) { result ->
+                result.onFailure {
+                    Snackbar.make(binding.root, R.string.error_occurred, Snackbar.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        menuBinding.contextMenuAmountMinus.setOnClickListener {
+            if (currentAmount > 1) {
+                currentAmount--
+                updateAmountUi()
+                viewModel.updateItemAmount(storeItem.item.id, currentAmount) { result ->
+                    result.onFailure {
+                        Snackbar.make(binding.root, R.string.error_occurred, Snackbar.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+
         val popupView = menuBinding.root
         popupView.measure(
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),

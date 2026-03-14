@@ -37,7 +37,8 @@ class ShoppingRepository(private val database: AppDatabase) {
                     name = itemWithState.name,
                     state = ItemState.fromString(itemWithState.state),
                     createdAt = itemWithState.created_at,
-                    stateChangedAt = itemWithState.state_changed_at
+                    stateChangedAt = itemWithState.state_changed_at,
+                    amount = itemWithState.amount
                 )
             }
         }
@@ -75,7 +76,8 @@ class ShoppingRepository(private val database: AppDatabase) {
                         name = itemWithStoreInfo.name,
                         state = ItemState.fromString(itemWithStoreInfo.state),
                         createdAt = itemWithStoreInfo.created_at,
-                        stateChangedAt = itemWithStoreInfo.state_changed_at
+                        stateChangedAt = itemWithStoreInfo.state_changed_at,
+                        amount = itemWithStoreInfo.amount
                     ),
                     sortOrder = itemWithStoreInfo.sort_order,
                     isAvailable = itemWithStoreInfo.is_available == 1
@@ -250,6 +252,15 @@ class ShoppingRepository(private val database: AppDatabase) {
     suspend fun deleteStore(storeId: Long): Result<Unit> {
         return try {
             storeDao.deleteStoreWithRelations(storeId)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateItemAmount(itemId: Long, amount: Int): Result<Unit> {
+        return try {
+            itemDao.updateItemAmount(itemId, amount)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

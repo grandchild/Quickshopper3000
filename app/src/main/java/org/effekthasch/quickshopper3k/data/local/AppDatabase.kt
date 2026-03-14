@@ -14,7 +14,7 @@ import androidx.room.RoomDatabase
         StoreItemOrderEntity::class,
         ItemAddHistoryEntity::class
     ],
-    version = 3,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
