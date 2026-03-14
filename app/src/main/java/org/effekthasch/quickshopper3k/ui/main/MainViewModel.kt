@@ -280,6 +280,23 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         }
     }
 
+    fun toggleItemAvailability(itemId: Long, currentlyAvailable: Boolean, onResult: (Result<Unit>) -> Unit) {
+        val storeId = _currentStoreId.value
+        if (storeId == null || storeId == 0L) {
+            onResult(Result.failure(IllegalStateException("No store selected")))
+            return
+        }
+        viewModelScope.launch {
+            val result = repository.setItemAvailability(storeId, itemId, !currentlyAvailable)
+            onResult(result)
+        }
+    }
+
+    fun isStoreSelected(): Boolean {
+        val storeId = _currentStoreId.value
+        return storeId != null && storeId != 0L
+    }
+
     fun updateItemOrderFromList(finalList: List<StoreItem>, onResult: (Result<Unit>) -> Unit) {
         val storeId = _currentStoreId.value ?: 0L
 

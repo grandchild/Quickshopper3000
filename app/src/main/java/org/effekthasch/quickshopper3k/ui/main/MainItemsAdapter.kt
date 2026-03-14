@@ -12,7 +12,7 @@ import org.effekthasch.quickshopper3k.ui.common.BaseDragAdapter
 
 class MainItemsAdapter(
     private val onItemClick: () -> Boolean,
-    private val onItemLongClick: (StoreItem) -> Unit,
+    private val onItemLongClick: (StoreItem, Float, Float) -> Unit,
     private val onStartDrag: (RecyclerView.ViewHolder) -> Unit
 ) : BaseDragAdapter<StoreItem, MainItemsAdapter.MainItemViewHolder>() {
 
@@ -142,7 +142,17 @@ class MainItemsAdapter(
         private val binding: ItemShoppingItemBinding
     ) : RecyclerView.ViewHolder(binding.root) {
 
+        private var lastTouchRawX = 0f
+        private var lastTouchRawY = 0f
+
         init {
+            binding.root.setOnTouchListener { _, event ->
+                if (event.action == android.view.MotionEvent.ACTION_DOWN) {
+                    lastTouchRawX = event.rawX
+                    lastTouchRawY = event.rawY
+                }
+                false
+            }
             binding.root.setOnClickListener {
                 val position = bindingAdapterPosition
                 if (position != RecyclerView.NO_POSITION) {
@@ -155,7 +165,7 @@ class MainItemsAdapter(
             binding.root.setOnLongClickListener {
                 val position = bindingAdapterPosition
                 if (position != RecyclerView.NO_POSITION) {
-                    onItemLongClick(backingItems[position])
+                    onItemLongClick(backingItems[position], lastTouchRawX, lastTouchRawY)
                     true
                 } else {
                     false

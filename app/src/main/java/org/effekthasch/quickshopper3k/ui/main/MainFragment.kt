@@ -9,8 +9,10 @@ import android.text.style.ForegroundColorSpan
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.Gravity
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.widget.PopupWindow
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
@@ -25,6 +27,7 @@ import org.effekthasch.quickshopper3k.R
 import org.effekthasch.quickshopper3k.data.local.AppDatabase
 import org.effekthasch.quickshopper3k.data.repository.ShoppingRepository
 import org.effekthasch.quickshopper3k.databinding.DialogAddItemBinding
+import org.effekthasch.quickshopper3k.databinding.DialogItemContextMenuBinding
 import org.effekthasch.quickshopper3k.databinding.DialogImportItemsBinding
 import org.effekthasch.quickshopper3k.databinding.DialogImportItemsPreviewBinding
 import org.effekthasch.quickshopper3k.databinding.FragmentMainBinding
@@ -60,11 +63,11 @@ class MainFragment :
             }
             false
         },
-        onItemLongClick = { storeItem ->
+        onItemLongClick = { storeItem, rawX, rawY ->
             if (binding.searchContainer.visibility == View.VISIBLE) {
                 dismissSearch()
             } else {
-                showEditItemDialog(storeItem)
+                showItemContextMenu(storeItem, rawX, rawY)
             }
         },
         onStartDrag = { holder -> enableDragOn(holder) }
@@ -446,6 +449,74 @@ class MainFragment :
         binding.searchInput.clearFocus()
         hideInlineSearch()
         updateSearchActiveBar()
+    }
+
+    private fun showItemContextMenu(storeItem: StoreItem, rawX: Float, rawY: Float) {
+        val menuBinding = DialogItemContextMenuBinding.inflate(layoutInflater)
+
+        val storeSelected = viewModel.isStoreSelected()
+        if (storeSelected) {
+            menuBinding.contextMenuUnavailable.text = if (storeItem.isAvailable) {
+                getString(R.string.context_menu_unavailable)
+            } else {
+                getString(R.string.context_menu_available)
+            }
+            menuBinding.contextMenuUnavailable.visibility = View.VISIBLE
+        } else {
+            menuBinding.contextMenuUnavailable.visibility = View.GONE
+        }
+
+        val popupView = menuBinding.root
+        popupView.measure(
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+
+        val popup = PopupWindow(
+            popupView,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            true
+        )
+        popup.elevation = 8f
+        popup.setBackgroundDrawable(
+            android.graphics.drawable.ColorDrawable(
+                android.util.TypedValue().let { tv ->
+                    requireContext().theme.resolveAttribute(android.R.attr.colorBackground, tv, true)
+                    tv.data
+                }
+            ))
+
+        val anchor = binding.root
+        val anchorLocation = IntArray(2)
+        anchor.getLocationOnScreen(anchorLocation)
+
+        val screenHeight = resources.displayMetrics.heightPixels
+        val menuHeight = popupView.measuredHeight
+        val fitsBelow = rawY + menuHeight <= screenHeight
+
+        val x = (rawX - anchorLocation[0] - popupView.measuredWidth / 2).toInt()
+        val y = if (fitsBelow) {
+            (rawY - anchorLocation[1]).toInt()
+        } else {
+            (rawY - anchorLocation[1] - menuHeight).toInt()
+        }
+
+        menuBinding.contextMenuEdit.setOnClickListener {
+            popup.dismiss()
+            showEditItemDialog(storeItem)
+        }
+
+        menuBinding.contextMenuUnavailable.setOnClickListener {
+            popup.dismiss()
+            viewModel.toggleItemAvailability(storeItem.item.id, storeItem.isAvailable) { result ->
+                result.onFailure {
+                    Snackbar.make(binding.root, R.string.error_occurred, Snackbar.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        popup.showAsDropDown(anchor, x, y, Gravity.NO_GRAVITY)
     }
 
     private fun showEditItemDialog(storeItem: StoreItem) {
