@@ -297,7 +297,7 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
         private var pendingSwipeAction: Pair<StoreItem, Int>? = null
 
         override fun getSwipeThreshold(viewHolder: androidx.recyclerview.widget.RecyclerView.ViewHolder): Float {
-            return 0.3f
+            return 0.15f
         }
 
         override fun getMovementFlags(
@@ -457,7 +457,7 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
 
             val item = adapter.getItems()[position]
             val paint = android.graphics.Paint()
-            val swipeThreshold = itemView.width * 0.3f
+            val swipeThreshold = itemView.width * 0.15f
 
             if (dX > 0) {
                 val targetState = getSwipeRightTargetState(item)

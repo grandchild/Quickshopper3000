@@ -126,7 +126,7 @@ abstract class BaseListFragment<T> : Fragment() {
         private var pendingSwipeAction: Pair<T, Int>? = null
 
         override fun getSwipeThreshold(viewHolder: RecyclerView.ViewHolder): Float {
-            return 0.3f
+            return 0.15f
         }
 
         override fun onMove(
@@ -193,7 +193,7 @@ abstract class BaseListFragment<T> : Fragment() {
 
             val item = adapter.getItems()[position]
             val paint = android.graphics.Paint()
-            val swipeThreshold = itemView.width * 0.3f
+            val swipeThreshold = itemView.width * 0.15f
 
             if (dX > 0) {
                 val targetState = getSwipeRightTargetState(item)
