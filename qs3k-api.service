@@ -1,0 +1,14 @@
+[Unit]
+Description=Quickshopper 3000 App API Server
+After=network.target
+Wants=network.target
+
+[Service]
+User=http
+Group=http
+WorkingDirectory=/mnt/vol01/websites/effekthasch.org/qs3k/
+ExecStart=/mnt/vol01/websites/effekthasch.org/qs3k/qs3k-api
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

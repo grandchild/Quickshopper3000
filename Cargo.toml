@@ -1,0 +1,19 @@
+[package]
+name = "qs3k-api"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "qs3k-api"
+path = "qs3k-api.rs"
+
+[dependencies]
+tiny_http = "0.12"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", default-features = false, features = ["std"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+jiff = "0.2"
+
+[profile.release]
+opt-level = "z"
+lto = true
