@@ -107,6 +107,19 @@ class PreferencesManager(context: Context) {
             prefs.edit().putInt(KEY_REACTIVATE_MIN_SECONDS, value).apply()
         }
 
+    var syncServerUri: String?
+        get() = prefs.getString(KEY_SYNC_SERVER_URI, null)
+        set(value) {
+            prefs.edit().apply {
+                if (value == null) {
+                    remove(KEY_SYNC_SERVER_URI)
+                } else {
+                    putString(KEY_SYNC_SERVER_URI, value)
+                }
+                apply()
+            }
+        }
+
     var flushRecentlyDoneAt: Long?
         get() {
             val value = prefs.getLong(KEY_FLUSH_RECENTLY_DONE_AT, -1L)
@@ -134,5 +147,6 @@ class PreferencesManager(context: Context) {
         private const val KEY_HISTORY_DAYS = "history_days"
         private const val KEY_MISTAKE_DONE_SECONDS = "mistake_done_seconds"
         private const val KEY_REACTIVATE_MIN_SECONDS = "reactivate_min_seconds"
+        private const val KEY_SYNC_SERVER_URI = "sync_server_uri"
     }
 }

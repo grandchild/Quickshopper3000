@@ -60,6 +60,8 @@
     <!-- Preferences -->
 
     <string name="flush_recently_done">Flush recently done</string>
+    <string name="sync_server">Sync server</string>
+    <string name="sync_server_hint">https://…</string>
 
 
     <!-- Store selection -->

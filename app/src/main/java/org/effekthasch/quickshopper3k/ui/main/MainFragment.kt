@@ -179,10 +179,6 @@ class MainFragment :
                 true
             }
 
-            R.id.action_settings -> {
-                true
-            }
-
             else -> false
         }
     }

@@ -1,5 +1,6 @@
 package org.effekthasch.quickshopper3k
 
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.GestureDetector
@@ -293,6 +294,7 @@ class MainActivity : AppCompatActivity() {
 
         return when (item.itemId) {
             R.id.action_settings -> {
+                startActivity(Intent(this, org.effekthasch.quickshopper3k.ui.SettingsActivity::class.java))
                 true
             }
 
