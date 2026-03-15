@@ -10,17 +10,29 @@ interface SyncDao {
     @Query("SELECT * FROM sync_intent_queue WHERE synced = 0 ORDER BY id ASC")
     suspend fun getUnsynced(): List<SyncIntentQueueEntity>
 
+    @Query("SELECT COUNT(*) FROM sync_intent_queue WHERE synced = 0")
+    suspend fun getUnsyncedCount(): Int
+
+    @Query("SELECT * FROM sync_intent_queue WHERE synced = 0 ORDER BY id ASC LIMIT :limit")
+    suspend fun getUnsyncedBatch(limit: Int): List<SyncIntentQueueEntity>
+
     @Query("UPDATE sync_intent_queue SET synced = 1 WHERE id IN (:ids)")
     suspend fun markSynced(ids: List<Long>)
 
     @Query("DELETE FROM sync_intent_queue WHERE synced = 1")
     suspend fun purgeSynced()
 
+    @Query("DELETE FROM sync_intent_queue")
+    suspend fun purgeAll()
+
     @Query("SELECT value FROM sync_state WHERE key = :key")
     suspend fun getSyncState(key: String): String?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun setSyncState(state: SyncStateEntity)
+
+    @Query("DELETE FROM sync_state WHERE key = :key")
+    suspend fun deleteSyncState(key: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTombstone(tombstone: SyncTombstoneEntity)

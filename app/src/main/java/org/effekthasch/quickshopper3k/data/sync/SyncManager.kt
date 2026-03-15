@@ -51,15 +51,29 @@ class SyncManager(
         if (syncing) return
         syncing = true
         try {
-            val baseUrl = serverUrlProvider()
-            if (baseUrl == null) return
+            val baseUrl = serverUrlProvider() ?: return
             val listId = listIdProvider()
             val deviceId = deviceIdProvider()
             val client = SyncHttpClient(baseUrl)
 
             withContext(Dispatchers.IO) {
-                push(client, listId, deviceId)
-                pull(client, listId, deviceId)
+                val hasWatermark = syncDao.getSyncState(KEY_LAST_SYNCED_ULID) != null
+                val queuedCount = syncDao.getUnsyncedCount()
+                val hasQueued = queuedCount > 0
+
+                when {
+                    hasWatermark -> {
+                        push(client, listId, deviceId)
+                        pull(client, listId, deviceId)
+                    }
+
+                    hasQueued -> {
+                        push(client, listId, deviceId)
+                        pull(client, listId, deviceId)
+                    }
+
+                    else -> initialSync(client, listId, deviceId)
+                }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Sync failed", e)
@@ -69,28 +83,35 @@ class SyncManager(
     }
 
     private suspend fun push(client: SyncHttpClient, listId: String, deviceId: String) {
-        val queued = syncDao.getUnsynced()
-        if (queued.isEmpty()) return
+        var totalPushed = 0
+        while (true) {
+            val batch = syncDao.getUnsyncedBatch(BATCH_SIZE)
+            if (batch.isEmpty()) break
 
-        val envelopes = JSONArray()
-        for (entry in queued) {
-            val stored = JSONObject(entry.intentJson)
-            val envelope = JSONObject().apply {
-                put("device_ulid", stored.getString("device_ulid"))
-                put("server_ulid", JSONObject.NULL)
-                put("device_id", deviceId)
-                put("list_id", listId)
-                put("type", stored.getString("type"))
-                put("payload", stored.getJSONObject("payload"))
+            val envelopes = JSONArray()
+            for (entry in batch) {
+                val stored = JSONObject(entry.intentJson)
+                val envelope = JSONObject().apply {
+                    put("device_ulid", stored.getString("device_ulid"))
+                    put("server_ulid", JSONObject.NULL)
+                    put("device_id", deviceId)
+                    put("list_id", listId)
+                    put("type", stored.getString("type"))
+                    put("payload", stored.getJSONObject("payload"))
+                }
+                envelopes.put(envelope)
             }
-            envelopes.put(envelope)
-        }
 
-        client.postIntents(listId, envelopes).onSuccess {
-            syncDao.markSynced(queued.map { it.id })
+            val result = client.postIntents(listId, envelopes)
+            if (result.isFailure) {
+                Log.w(TAG, "Push failed", result.exceptionOrNull())
+                return
+            }
+
+            syncDao.markSynced(batch.map { it.id })
             syncDao.purgeSynced()
-        }.onFailure { e ->
-            Log.w(TAG, "Push failed", e)
+            totalPushed += batch.size
+            Log.d(TAG, "Pushed batch of ${batch.size} (total $totalPushed)")
         }
     }
 
@@ -118,9 +139,81 @@ class SyncManager(
         }
     }
 
+    private suspend fun initialSync(client: SyncHttpClient, listId: String, deviceId: String) {
+        val remoteIntents = client.getIntents(listId, null).getOrElse { e ->
+            Log.w(TAG, "Initial sync pull failed", e)
+            return
+        }
+
+        if (remoteIntents.length() > 0) {
+            applyRemoteIntents(remoteIntents, deviceId)
+        } else {
+            enqueueFullState()
+            push(client, listId, deviceId)
+            pull(client, listId, deviceId)
+        }
+    }
+
+    private suspend fun applyRemoteIntents(array: JSONArray, deviceId: String) {
+        var latestUlid: String? = null
+        for (i in 0 until array.length()) {
+            val json = array.getJSONObject(i)
+            val envelope = SyncIntentSerializer.fromJson(json) ?: continue
+            val serverUlid = envelope.serverUlid ?: continue
+            if (envelope.deviceId != deviceId) {
+                applier.apply(envelope.intent, serverUlid)
+            }
+            latestUlid = serverUlid
+        }
+        if (latestUlid != null) {
+            syncDao.setSyncState(SyncStateEntity(KEY_LAST_SYNCED_ULID, latestUlid))
+        }
+    }
+
+    private suspend fun enqueueFullState() {
+        val itemDao = database.itemDao()
+        val storeDao = database.storeDao()
+        val emitter = IntentEmitter(syncDao)
+
+        val items = itemDao.getAllItems()
+        for (item in items) {
+            emitter.emit(SyncIntent.AddItem(item.uuid, item.name))
+            if (item.amount != 1) {
+                emitter.emit(SyncIntent.SetItemAmount(item.uuid, item.amount))
+            }
+            val state = itemDao.getItemState(item.id)
+            if (state != null && state.state != "ACTIVATED") {
+                emitter.emit(SyncIntent.SetItemState(item.uuid, state.state, "ACTIVATED"))
+            }
+        }
+
+        val stores = storeDao.getAllStoresList()
+        for (store in stores) {
+            emitter.emit(SyncIntent.AddStore(store.uuid, store.name, store.specialtyStore))
+        }
+
+        val itemUuidById = items.associate { it.id to it.uuid }
+        val storeUuidById = stores.associate { it.id to it.uuid }
+
+        val unavailability = storeDao.getAllUnavailability()
+        for (entry in unavailability) {
+            val storeUuid = storeUuidById[entry.storeId] ?: continue
+            val itemUuid = itemUuidById[entry.itemId] ?: continue
+            emitter.emit(SyncIntent.SetAvailability(storeUuid, itemUuid, false))
+        }
+
+        val orders = storeDao.getAllItemOrders()
+        for (order in orders) {
+            val storeUuid = storeUuidById[order.storeId] ?: continue
+            val itemUuid = itemUuidById[order.itemId] ?: continue
+            emitter.emit(SyncIntent.SetItemOrder(storeUuid, itemUuid, order.sortOrder))
+        }
+    }
+
     companion object {
         private const val TAG = "SyncManager"
         private const val POLL_INTERVAL_MS = 5_000L
+        private const val BATCH_SIZE = 5000
         private const val KEY_LAST_SYNCED_ULID = "last_synced_ulid"
     }
 }

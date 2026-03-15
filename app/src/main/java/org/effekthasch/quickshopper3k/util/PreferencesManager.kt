@@ -130,13 +130,16 @@ class PreferencesManager(context: Context) {
             return id
         }
 
-    val listId: String
+    var listId: String
         get() {
             val existing = prefs.getString(KEY_LIST_ID, null)
             if (existing != null) return existing
             val id = Ulid.generate()
             prefs.edit().putString(KEY_LIST_ID, id).apply()
             return id
+        }
+        set(value) {
+            prefs.edit().putString(KEY_LIST_ID, value).apply()
         }
 
     var flushRecentlyDoneAt: Long?

@@ -1,10 +1,14 @@
 package org.effekthasch.quickshopper3k.data.sync
 
+import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.zip.GZIPInputStream
+import java.util.zip.GZIPOutputStream
 
 class SyncHttpClient(private val baseUrl: String) {
 
@@ -40,16 +44,27 @@ class SyncHttpClient(private val baseUrl: String) {
             conn.connectTimeout = 10_000
             conn.readTimeout = 10_000
             conn.setRequestProperty("Accept", "application/json")
+            conn.setRequestProperty("Accept-Encoding", "gzip")
 
             if (body != null) {
+                val raw = body.toByteArray(Charsets.UTF_8)
+                val compressed = ByteArrayOutputStream(raw.size / 2).also { baos ->
+                    GZIPOutputStream(baos).use { it.write(raw) }
+                }.toByteArray()
                 conn.doOutput = true
                 conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+                conn.setRequestProperty("Content-Encoding", "gzip")
+                conn.outputStream.use { it.write(compressed) }
             }
 
             val code = conn.responseCode
             if (code in 200..299) {
-                val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                val stream = if (conn.contentEncoding?.equals("gzip", ignoreCase = true) == true) {
+                    GZIPInputStream(conn.inputStream)
+                } else {
+                    conn.inputStream
+                }
+                val text = stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
                 Result.success(text)
             } else {
                 val error = conn.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""

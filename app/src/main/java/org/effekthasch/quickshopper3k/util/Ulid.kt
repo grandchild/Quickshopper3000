@@ -25,6 +25,14 @@ object Ulid {
         return String(chars)
     }
 
+    fun isValid(ulid: String): Boolean {
+        if (ulid.length != 26) return false
+        for (c in ulid) {
+            if (decodeChar(c) == -1) return false
+        }
+        return true
+    }
+
     fun timestamp(ulid: String): Long {
         var ts = 0L
         for (i in 0 until 10) {

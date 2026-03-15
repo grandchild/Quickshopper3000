@@ -8,6 +8,9 @@ interface StoreDao {
     @Query("SELECT * FROM stores ORDER BY name ASC")
     fun getAllStores(): Flow<List<StoreEntity>>
 
+    @Query("SELECT * FROM stores ORDER BY name ASC")
+    suspend fun getAllStoresList(): List<StoreEntity>
+
     @Query("SELECT * FROM stores WHERE id = :storeId")
     suspend fun getStoreById(storeId: Long): StoreEntity?
 
@@ -32,8 +35,14 @@ interface StoreDao {
     @Query("SELECT * FROM store_item_unavailability WHERE store_id = :storeId")
     suspend fun getUnavailableItemsForStore(storeId: Long): List<StoreItemUnavailabilityEntity>
 
+    @Query("SELECT * FROM store_item_unavailability")
+    suspend fun getAllUnavailability(): List<StoreItemUnavailabilityEntity>
+
     @Query("SELECT * FROM store_item_order WHERE store_id = :storeId ORDER BY sort_order ASC")
     suspend fun getItemOrderForStore(storeId: Long): List<StoreItemOrderEntity>
+
+    @Query("SELECT * FROM store_item_order")
+    suspend fun getAllItemOrders(): List<StoreItemOrderEntity>
 
     @Query("SELECT MAX(sort_order) FROM store_item_order WHERE store_id = :storeId")
     suspend fun getMaxSortOrderForStore(storeId: Long): Int?
