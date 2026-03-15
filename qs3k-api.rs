@@ -448,6 +448,7 @@ fn route_request(
             }
 
             let conn = lock_db(state)?;
+            conn.execute_batch("BEGIN").map_err(db_error)?;
             let now = get_current_timestamp();
             let mut server_ulids = Vec::with_capacity(intents.len());
 
@@ -480,9 +481,14 @@ fn route_request(
                 )
                 .map_err(db_error)?;
 
-                track_device_sync(&conn, list_uuid, &intent.device_id, &server_ulid)?;
                 server_ulids.push(server_ulid);
             }
+
+            if let Some(last_ulid) = server_ulids.last() {
+                track_device_sync(&conn, list_uuid, &intents[0].device_id, last_ulid)?;
+            }
+
+            conn.execute_batch("COMMIT").map_err(db_error)?;
 
             json_response(&serde_json::json!({
                 "received": server_ulids.len(),
