@@ -9,10 +9,13 @@ import android.view.MenuItem
 import android.view.MotionEvent
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.view.menu.MenuBuilder
+import androidx.lifecycle.lifecycleScope
 
 import androidx.fragment.app.Fragment
 import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.bottomappbar.BottomAppBar
+import org.effekthasch.quickshopper3k.data.local.AppDatabase
+import org.effekthasch.quickshopper3k.data.sync.SyncManager
 import org.effekthasch.quickshopper3k.databinding.ActivityMainBinding
 import org.effekthasch.quickshopper3k.ui.FabController
 import org.effekthasch.quickshopper3k.ui.MainPagerAdapter
@@ -23,6 +26,7 @@ import kotlin.math.abs
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var prefsManager: PreferencesManager
+    private lateinit var syncManager: SyncManager
     private var currentPage = 1
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -34,6 +38,12 @@ class MainActivity : AppCompatActivity() {
 
 
         prefsManager = PreferencesManager(this)
+        syncManager = SyncManager(
+            database = AppDatabase.getDatabase(this),
+            serverUrlProvider = { prefsManager.syncServerUri },
+            deviceIdProvider = { prefsManager.deviceId },
+            listIdProvider = { prefsManager.listId }
+        )
 
         setupBottomAppBar()
         setupViewPager()
@@ -44,6 +54,16 @@ class MainActivity : AppCompatActivity() {
         setupDoneVisibilityButton()
         applyHandednessSettings()
         updateLockscreenFlags(currentPage)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        syncManager.start(lifecycleScope)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        syncManager.stop()
     }
 
     private fun setupBottomAppBar() {

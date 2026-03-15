@@ -2,6 +2,7 @@ package org.effekthasch.quickshopper3k.util
 
 import android.content.Context
 import android.content.SharedPreferences
+import org.effekthasch.quickshopper3k.util.Ulid
 
 enum class DoneVisibilityMode {
     RECENT,
@@ -120,6 +121,24 @@ class PreferencesManager(context: Context) {
             }
         }
 
+    val deviceId: String
+        get() {
+            val existing = prefs.getString(KEY_DEVICE_ID, null)
+            if (existing != null) return existing
+            val id = Ulid.generate()
+            prefs.edit().putString(KEY_DEVICE_ID, id).apply()
+            return id
+        }
+
+    val listId: String
+        get() {
+            val existing = prefs.getString(KEY_LIST_ID, null)
+            if (existing != null) return existing
+            val id = Ulid.generate()
+            prefs.edit().putString(KEY_LIST_ID, id).apply()
+            return id
+        }
+
     var flushRecentlyDoneAt: Long?
         get() {
             val value = prefs.getLong(KEY_FLUSH_RECENTLY_DONE_AT, -1L)
@@ -148,5 +167,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_MISTAKE_DONE_SECONDS = "mistake_done_seconds"
         private const val KEY_REACTIVATE_MIN_SECONDS = "reactivate_min_seconds"
         private const val KEY_SYNC_SERVER_URI = "sync_server_uri"
+        private const val KEY_DEVICE_ID = "device_id"
+        private const val KEY_LIST_ID = "list_id"
     }
 }
