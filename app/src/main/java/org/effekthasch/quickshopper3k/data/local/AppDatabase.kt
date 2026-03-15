@@ -45,6 +45,13 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
                 value TEXT NOT NULL
             )"""
         )
+
+        db.execSQL(
+            """CREATE TABLE IF NOT EXISTS sync_tombstones (
+                entity_uuid TEXT NOT NULL PRIMARY KEY,
+                deleted_at_ulid TEXT NOT NULL
+            )"""
+        )
     }
 }
 
@@ -57,7 +64,8 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
         StoreItemOrderEntity::class,
         ItemAddHistoryEntity::class,
         SyncIntentQueueEntity::class,
-        SyncStateEntity::class
+        SyncStateEntity::class,
+        SyncTombstoneEntity::class
     ],
     version = 6,
     exportSchema = false

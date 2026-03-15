@@ -46,6 +46,12 @@ interface ItemDao {
     @Query("SELECT * FROM items WHERE id = :itemId")
     suspend fun getItemById(itemId: Long): ItemEntity?
 
+    @Query("SELECT uuid FROM items WHERE id = :itemId")
+    suspend fun getUuidById(itemId: Long): String?
+
+    @Query("SELECT uuid FROM items WHERE id IN (:itemIds)")
+    suspend fun getUuidsByIds(itemIds: List<Long>): List<String>
+
     @Query("SELECT * FROM items WHERE uuid = :uuid")
     suspend fun getItemByUuid(uuid: String): ItemEntity?
 

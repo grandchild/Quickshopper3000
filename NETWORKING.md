@@ -101,7 +101,7 @@ Server is a black box. Assumed endpoints:
 Push one or more intents. Body is a JSON array of intent objects. Server stores them and makes them available to other devices.
 
 ### `GET /list/{list_uuid}/intents?since={ulid}`
-Pull intents newer than the given ULID. Returns JSON array of intent objects in ULID order. If `since` is omitted or the server has compacted past that point, returns a snapshot + subsequent intents.
+Pull intents newer than the given ULID. Returns JSON array of intent objects in **strict `server_ulid` order**. The client relies on this guarantee to apply intents incrementally without per-field LWW tracking — every incoming intent is newer than anything previously seen. If `since` is omitted or the server has compacted past that point, returns a snapshot + subsequent intents.
 
 ### `GET /list/{list_uuid}/snapshot`
 Returns the latest compacted snapshot (full state) plus the ULID of the snapshot. Client can then poll intents from that ULID forward.

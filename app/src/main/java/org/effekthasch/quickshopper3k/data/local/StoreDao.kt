@@ -11,6 +11,9 @@ interface StoreDao {
     @Query("SELECT * FROM stores WHERE id = :storeId")
     suspend fun getStoreById(storeId: Long): StoreEntity?
 
+    @Query("SELECT uuid FROM stores WHERE id = :storeId")
+    suspend fun getUuidById(storeId: Long): String?
+
     @Query("SELECT * FROM stores WHERE uuid = :uuid")
     suspend fun getStoreByUuid(uuid: String): StoreEntity?
 

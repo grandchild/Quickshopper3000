@@ -21,4 +21,13 @@ interface SyncDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun setSyncState(state: SyncStateEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTombstone(tombstone: SyncTombstoneEntity)
+
+    @Query("SELECT 1 FROM sync_tombstones WHERE entity_uuid = :entityUuid LIMIT 1")
+    suspend fun isTombstoned(entityUuid: String): Int?
+
+    @Query("DELETE FROM sync_tombstones WHERE entity_uuid IN (:entityUuids)")
+    suspend fun deleteTombstones(entityUuids: List<String>)
 }

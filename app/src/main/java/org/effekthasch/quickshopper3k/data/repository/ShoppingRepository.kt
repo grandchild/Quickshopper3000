@@ -7,6 +7,8 @@ import org.effekthasch.quickshopper3k.data.local.AppDatabase
 import org.effekthasch.quickshopper3k.data.local.ItemAddHistoryEntity
 import org.effekthasch.quickshopper3k.data.local.ItemEntity
 import org.effekthasch.quickshopper3k.data.local.StoreEntity
+import org.effekthasch.quickshopper3k.data.sync.IntentEmitter
+import org.effekthasch.quickshopper3k.data.sync.SyncIntent
 import org.effekthasch.quickshopper3k.domain.model.Item
 import org.effekthasch.quickshopper3k.domain.model.ItemState
 import org.effekthasch.quickshopper3k.domain.model.Store
@@ -16,6 +18,7 @@ import org.effekthasch.quickshopper3k.util.Ulid
 class ShoppingRepository(private val database: AppDatabase) {
     private val itemDao = database.itemDao()
     private val storeDao = database.storeDao()
+    private val emitter = IntentEmitter(database.syncDao())
 
     companion object {
         const val DEFAULT_STORE_ID = 0L
@@ -95,9 +98,10 @@ class ShoppingRepository(private val database: AppDatabase) {
     ): Result<Long> {
         return try {
             val now = System.currentTimeMillis()
+            val uuid = Ulid.generate()
             val id = itemDao.insertItem(
                 ItemEntity(
-                    uuid = Ulid.generate(),
+                    uuid = uuid,
                     name = name,
                     createdAt = now
                 )
@@ -114,6 +118,8 @@ class ShoppingRepository(private val database: AppDatabase) {
 
             recordItemAdded(id, now, historyDays)
 
+            emitter.emit(SyncIntent.AddItem(uuid, name))
+
             Result.success(id)
         } catch (e: Exception) {
             Result.failure(e)
@@ -125,6 +131,7 @@ class ShoppingRepository(private val database: AppDatabase) {
             val item = itemDao.getItemById(itemId)
             if (item != null) {
                 itemDao.updateItem(item.copy(name = newName))
+                emitter.emit(SyncIntent.RenameItem(item.uuid, newName))
                 Result.success(Unit)
             } else {
                 Result.failure(IllegalArgumentException("Item not found"))
@@ -136,8 +143,12 @@ class ShoppingRepository(private val database: AppDatabase) {
 
     suspend fun deleteItem(itemId: Long): Result<Unit> {
         return try {
+            val uuid = itemDao.getUuidById(itemId)
             itemDao.deleteItemAddHistoryByItemId(itemId)
             itemDao.deleteItemById(itemId)
+            if (uuid != null) {
+                emitter.emit(SyncIntent.DeleteItem(uuid))
+            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -153,9 +164,11 @@ class ShoppingRepository(private val database: AppDatabase) {
     ): Result<Unit> {
         return try {
             val now = System.currentTimeMillis()
+            val existingState = itemDao.getItemState(itemId)
+            val previousState = existingState?.state ?: ItemState.ACTIVATED.toString()
+
             when (state) {
                 ItemState.ACTIVATED -> {
-                    val existingState = itemDao.getItemState(itemId)
                     val lastDoneAt = if (existingState?.state == ItemState.DEACTIVATED.toString()) {
                         existingState.stateChangedAt
                     } else {
@@ -185,6 +198,12 @@ class ShoppingRepository(private val database: AppDatabase) {
                     itemDao.setItemState(itemId, state.toString())
                 }
             }
+
+            val uuid = itemDao.getUuidById(itemId)
+            if (uuid != null) {
+                emitter.emit(SyncIntent.SetItemState(uuid, state.toString(), previousState))
+            }
+
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -210,9 +229,10 @@ class ShoppingRepository(private val database: AppDatabase) {
 
     suspend fun addStore(name: String, specialtyStore: Boolean = false): Result<Long> {
         return try {
+            val uuid = Ulid.generate()
             val id = storeDao.insertStore(
                 StoreEntity(
-                    uuid = Ulid.generate(),
+                    uuid = uuid,
                     name = name,
                     specialtyStore = specialtyStore
                 )
@@ -225,6 +245,8 @@ class ShoppingRepository(private val database: AppDatabase) {
                 }
             }
 
+            emitter.emit(SyncIntent.AddStore(uuid, name, specialtyStore))
+
             Result.success(id)
         } catch (e: Exception) {
             Result.failure(e)
@@ -236,6 +258,7 @@ class ShoppingRepository(private val database: AppDatabase) {
             val store = storeDao.getStoreById(storeId)
             if (store != null) {
                 storeDao.updateStore(store.copy(name = newName))
+                emitter.emit(SyncIntent.UpdateStore(store.uuid, newName, store.specialtyStore))
                 Result.success(Unit)
             } else {
                 Result.failure(IllegalArgumentException("Store not found"))
@@ -250,6 +273,7 @@ class ShoppingRepository(private val database: AppDatabase) {
             val store = storeDao.getStoreById(storeId)
             if (store != null) {
                 storeDao.updateStore(store.copy(name = newName, specialtyStore = specialtyStore))
+                emitter.emit(SyncIntent.UpdateStore(store.uuid, newName, specialtyStore))
                 Result.success(Unit)
             } else {
                 Result.failure(IllegalArgumentException("Store not found"))
@@ -261,7 +285,11 @@ class ShoppingRepository(private val database: AppDatabase) {
 
     suspend fun deleteStore(storeId: Long): Result<Unit> {
         return try {
+            val uuid = storeDao.getUuidById(storeId)
             storeDao.deleteStoreWithRelations(storeId)
+            if (uuid != null) {
+                emitter.emit(SyncIntent.DeleteStore(uuid))
+            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -271,6 +299,10 @@ class ShoppingRepository(private val database: AppDatabase) {
     suspend fun updateItemAmount(itemId: Long, amount: Int): Result<Unit> {
         return try {
             itemDao.updateItemAmount(itemId, amount)
+            val uuid = itemDao.getUuidById(itemId)
+            if (uuid != null) {
+                emitter.emit(SyncIntent.SetItemAmount(uuid, amount))
+            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -280,6 +312,11 @@ class ShoppingRepository(private val database: AppDatabase) {
     suspend fun setItemAvailability(storeId: Long, itemId: Long, isAvailable: Boolean): Result<Unit> {
         return try {
             storeDao.setItemAvailability(storeId, itemId, isAvailable)
+            val storeUuid = storeDao.getUuidById(storeId)
+            val itemUuid = itemDao.getUuidById(itemId)
+            if (storeUuid != null && itemUuid != null) {
+                emitter.emit(SyncIntent.SetAvailability(storeUuid, itemUuid, isAvailable))
+            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -289,6 +326,13 @@ class ShoppingRepository(private val database: AppDatabase) {
     suspend fun updateStoreItemOrders(storeId: Long, orders: List<Pair<Long, Int>>): Result<Unit> {
         return try {
             storeDao.updateStoreItemOrders(storeId, orders)
+            val storeUuid = storeDao.getUuidById(storeId) ?: return Result.success(Unit)
+            orders.forEach { (itemId, sortOrder) ->
+                val itemUuid = itemDao.getUuidById(itemId)
+                if (itemUuid != null) {
+                    emitter.emit(SyncIntent.SetItemOrder(storeUuid, itemUuid, sortOrder))
+                }
+            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -301,9 +345,10 @@ class ShoppingRepository(private val database: AppDatabase) {
     ): Result<Int> {
         return try {
             val timestamp = System.currentTimeMillis()
-            val entities = names.map { name ->
+            val uuids = names.map { Ulid.generate() }
+            val entities = names.mapIndexed { index, name ->
                 ItemEntity(
-                    uuid = Ulid.generate(),
+                    uuid = uuids[index],
                     name = name,
                     createdAt = timestamp
                 )
@@ -327,6 +372,8 @@ class ShoppingRepository(private val database: AppDatabase) {
             ids.forEach { id ->
                 recordItemAdded(id, timestamp, historyDays)
             }
+
+            emitter.emit(SyncIntent.BulkAddItems(uuids.zip(names)))
 
             Result.success(ids.size)
         } catch (e: Exception) {
@@ -379,6 +426,12 @@ class ShoppingRepository(private val database: AppDatabase) {
                     itemDao.setAllItemsToState(state.toString())
                 }
             }
+
+            val uuids = allItems.map { it.uuid }
+            if (uuids.isNotEmpty()) {
+                emitter.emit(SyncIntent.BulkSetState(uuids, state.toString()))
+            }
+
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
