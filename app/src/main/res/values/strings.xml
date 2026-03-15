@@ -62,6 +62,27 @@
     <string name="flush_recently_done">Flush recently done</string>
     <string name="sync_server">Sync server</string>
     <string name="sync_server_hint">https://…</string>
+    <string name="sync_sharing">List sharing</string>
+    <string name="share_list">Share list</string>
+    <string name="join_list">Join list</string>
+    <string name="join_list_title">Join shared list</string>
+    <string name="join_list_hint">Paste list ID</string>
+    <string
+        name="join_list_warning"
+    >This will replace your current list with the shared one. Continue?</string>
+    <string name="list_id_label">List ID: %1$s</string>
+    <string name="list_id_copied">List ID copied</string>
+    <string name="joined_list">Joined shared list</string>
+    <string name="error_join_list">Failed to join list</string>
+    <string name="error_invalid_list_id">Invalid list ID</string>
+    <string name="error_same_list">Already on this list</string>
+    <string name="error_no_server">Set a sync server first</string>
+    <string name="reset_list_id">Reset list ID</string>
+    <string name="reset_list_id_title">Reset list ID?</string>
+    <string
+        name="reset_list_id_warning"
+    >This will disconnect all other devices from this list. Your data will be pushed to a new list.</string>
+    <string name="list_id_reset">List ID reset</string>
 
 
     <!-- Store selection -->

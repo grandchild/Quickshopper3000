@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
@@ -30,5 +31,58 @@
         />
 
     </com.google.android.material.textfield.TextInputLayout>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/sync_sharing"
+        android:textAppearance="?attr/textAppearanceBodyLarge"
+        android:layout_marginTop="24dp"
+        android:layout_marginBottom="8dp"
+    />
+
+    <TextView
+        android:id="@+id/listIdDisplay"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:textSize="16sp"
+        android:textColor="?android:attr/textColorPrimary"
+        android:fontFamily="monospace"
+        android:clickable="true"
+        android:focusable="true"
+        android:background="?attr/selectableItemBackground"
+        android:padding="8dp"
+    />
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/joinListInputLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:errorEnabled="true"
+    >
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/joinListInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/join_list_hint"
+            android:inputType="text"
+            android:maxLines="1"
+        />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/resetListIdButton"
+        style="@style/Widget.MaterialComponents.Button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:text="@string/reset_list_id"
+        android:textSize="16sp"
+        android:textColor="?attr/colorOnPrimary"
+        app:backgroundTint="?attr/colorPrimary"
+    />
 
 </LinearLayout>
