@@ -1,9 +1,11 @@
+use flate2::read::GzDecoder;
 use jiff::Timestamp;
 use rusqlite::{params, Connection, Result as SqliteResult};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     error::Error,
+    io::Read,
     sync::{Arc, Mutex, MutexGuard},
 };
 use tiny_http::{Header, Method, Request, Response, Server};
@@ -302,11 +304,26 @@ fn cors_response() -> Response<std::io::Cursor<Vec<u8>>> {
 }
 
 fn read_body(request: &mut Request) -> Result<String, String> {
+    let is_gzipped = request.headers().iter().any(|h| {
+        h.field.equiv("Content-Encoding") && h.value.as_str().eq_ignore_ascii_case("gzip")
+    });
+
     let mut body = String::new();
-    request
-        .as_reader()
-        .read_to_string(&mut body)
-        .map_err(|e| format!("Failed to read body: {e}"))?;
+    if is_gzipped {
+        let mut raw = Vec::new();
+        request
+            .as_reader()
+            .read_to_end(&mut raw)
+            .map_err(|e| format!("Failed to read body: {e}"))?;
+        GzDecoder::new(&raw[..])
+            .read_to_string(&mut body)
+            .map_err(|e| format!("Failed to decompress gzipped body: {e}"))?;
+    } else {
+        request
+            .as_reader()
+            .read_to_string(&mut body)
+            .map_err(|e| format!("Failed to read body: {e}"))?;
+    }
     Ok(body)
 }
 
