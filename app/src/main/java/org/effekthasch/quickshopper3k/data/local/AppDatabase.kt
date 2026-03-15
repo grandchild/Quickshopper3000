@@ -55,6 +55,17 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
     }
 }
 
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """CREATE TABLE IF NOT EXISTS sync_tombstones (
+                entity_uuid TEXT NOT NULL PRIMARY KEY,
+                deleted_at_ulid TEXT NOT NULL
+            )"""
+        )
+    }
+}
+
 @Database(
     entities = [
         ItemEntity::class,
@@ -67,7 +78,7 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
         SyncStateEntity::class,
         SyncTombstoneEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -86,7 +97,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "quickshopper3k_database"
                 )
-                    .addMigrations(MIGRATION_5_6)
+                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7)
                     .build()
                 INSTANCE = instance
                 instance
