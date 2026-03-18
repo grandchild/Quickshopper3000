@@ -499,8 +499,8 @@ fn route_request(
         (Method::Get, ["list", list_uuid, "intents"]) => {
             let conn = lock_db(state)?;
 
+            let (snapshot_ulid, snapshot) = get_snapshot(&conn, list_uuid)?;
             let intents = if let Some(since) = query_params.get("since") {
-                let (snapshot_ulid, _) = get_snapshot(&conn, list_uuid)?;
                 if let Some(ref snap_ulid) = snapshot_ulid {
                     if since.as_str() < snap_ulid.as_str() {
                         let (_, snapshot) = get_snapshot(&conn, list_uuid)?;
@@ -514,7 +514,6 @@ fn route_request(
                 }
                 load_intents_since(&conn, list_uuid, since)?
             } else {
-                let (snapshot_ulid, snapshot) = get_snapshot(&conn, list_uuid)?;
                 if snapshot_ulid.is_some() {
                     let subsequent = load_intents_since(
                         &conn,
@@ -529,6 +528,13 @@ fn route_request(
                 }
                 load_all_intents(&conn, list_uuid)?
             };
+
+            if snapshot_ulid.is_none() && intents.is_empty() {
+                return Err(ErrorInfo {
+                    status: 404,
+                    message: format!("No list '{}'", list_uuid),
+                });
+            }
 
             json_response(&intents)
         }
