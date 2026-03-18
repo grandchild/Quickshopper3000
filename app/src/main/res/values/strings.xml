@@ -61,7 +61,7 @@
 
     <string name="flush_recently_done">Flush recently done</string>
     <string name="sync_server">Sync server</string>
-    <string name="sync_server_hint">https://…</string>
+    <string name="sync_server_hint">Sync server</string>
     <string name="sync_sharing">List sharing</string>
     <string name="share_list">Share list</string>
     <string name="join_list">Join list</string>
