@@ -138,10 +138,18 @@ Returns the full intent queue for the list: all retained intents (post-compactio
 
 The intent log grows without bound. Compaction collapses old intents into a state snapshot.
 
-- **Server-side**: periodically (or on request) the server materializes all intents up to some ULID into a snapshot, discards those intents.
+- **Server-side**: compaction is done on the server.
+- **Trigger point**: evaluated on `GET /list/{list_uuid}/intents`, but rate-limited to at most once per list every 12 hours.
+- **Active-device floor**: compute `effective_min_hwm` as the minimum `last_synced_ulid` among non-stale devices for the list.
+- **Stale device cutoff**: devices with no sync activity for 60 days are excluded from `effective_min_hwm`.
+- **Backlog trigger**: compaction is eligible when there are at least 10 intents newer than `effective_min_hwm`.
+- **Retained tail**: always retain recent intents by time, keeping at least a 7-day tail.
+- **Compaction boundary**: compact only up to the older of:
+  - `effective_min_hwm`, and
+  - the ULID corresponding to `now - 7 days`.
 - **Snapshot format**: full state dump — all items (with uuid, name, state, amount, created_at), all stores (with uuid, name, specialty), all availability entries, all ordering entries. JSON.
 - **Client catch-up**: if a client's `since` ULID is older than the oldest retained intent, the server returns the snapshot first, then intents after the snapshot.
-- **Tombstone pruning**: tombstones can be removed during compaction if all known devices have synced past the delete intent.
+- **Tombstone pruning**: tombstones can be removed during compaction if all non-stale devices have synced past the delete intent.
 
 ## Local Schema Changes Required
 

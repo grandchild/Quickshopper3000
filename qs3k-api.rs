@@ -63,6 +63,11 @@ const MAX_ITEM_NAME_LEN: usize = 1000;
 const MAX_STORE_NAME_LEN: usize = 1000;
 const MAX_AMOUNT: i64 = 1_000_000;
 
+const COMPACTION_BACKLOG_THRESHOLD: usize = 10;
+const RETENTION_TAIL_DAYS: i64 = 7;
+const STALE_DEVICE_DAYS: i64 = 60;
+const COMPACTION_CHECK_INTERVAL_HOURS: i64 = 12;
+
 fn db_error(e: rusqlite::Error) -> ErrorInfo {
     ErrorInfo {
         status: 500,
@@ -205,6 +210,14 @@ fn create_tables(conn: &Connection) -> SqliteResult<()> {
             last_synced_ulid TEXT,
             updated_at TEXT NOT NULL,
             PRIMARY KEY (list_id, device_id)
+        )",
+        params![],
+    )?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS compaction_state (
+            list_id TEXT PRIMARY KEY,
+            last_compaction_check_at TEXT NOT NULL
         )",
         params![],
     )?;
@@ -412,6 +425,191 @@ fn load_all_intents(conn: &Connection, list_id: &str) -> ApiResult<Vec<Intent>> 
     load_intents_since(conn, list_id, "")
 }
 
+fn should_run_compaction_check(conn: &Connection, list_id: &str) -> ApiResult<bool> {
+    let maybe_last: Result<String, rusqlite::Error> = conn.query_row(
+        "SELECT last_compaction_check_at FROM compaction_state WHERE list_id = ?1",
+        params![list_id],
+        |row| row.get(0),
+    );
+
+    let now = Timestamp::now();
+    let should_run = match maybe_last {
+        Ok(last) => match last.parse::<Timestamp>() {
+            Ok(last_ts) => now
+                .since(last_ts)
+                .map(|span| i64::from(span.get_hours()) >= COMPACTION_CHECK_INTERVAL_HOURS)
+                .unwrap_or(true),
+            Err(_) => true,
+        },
+        Err(rusqlite::Error::QueryReturnedNoRows) => true,
+        Err(e) => return Err(db_error(e)),
+    };
+
+    Ok(should_run)
+}
+
+fn mark_compaction_check(conn: &Connection, list_id: &str) -> ApiResult<()> {
+    let now = get_current_timestamp();
+    conn.execute(
+        "INSERT INTO compaction_state (list_id, last_compaction_check_at)
+         VALUES (?1, ?2)
+         ON CONFLICT(list_id) DO UPDATE SET
+            last_compaction_check_at = excluded.last_compaction_check_at",
+        params![list_id, now],
+    )
+    .map_err(db_error)?;
+    Ok(())
+}
+
+fn maybe_compact_list(conn: &Connection, list_id: &str) -> ApiResult<()> {
+    if !should_run_compaction_check(conn, list_id)? {
+        return Ok(());
+    }
+
+    let now = Timestamp::now();
+    let stale_cutoff = now
+        .checked_sub(jiff::Span::new().days(STALE_DEVICE_DAYS))
+        .unwrap_or(now);
+    let stale_cutoff_s = stale_cutoff.strftime("%Y-%m-%dT%H:%M:%S.%fZ").to_string();
+
+    let min_non_stale_hwm: Option<String> = conn
+        .query_row(
+            "SELECT MIN(last_synced_ulid)
+             FROM device_sync
+             WHERE list_id = ?1
+               AND last_synced_ulid IS NOT NULL
+               AND updated_at >= ?2",
+            params![list_id, stale_cutoff_s],
+            |row| row.get(0),
+        )
+        .map_err(db_error)?;
+
+    let latest_ulid: Option<String> = conn
+        .query_row(
+            "SELECT MAX(server_ulid) FROM intent WHERE list_id = ?1",
+            params![list_id],
+            |row| row.get(0),
+        )
+        .map_err(db_error)?;
+
+    let Some(latest_ulid) = latest_ulid else {
+        mark_compaction_check(conn, list_id)?;
+        return Ok(());
+    };
+
+    let backlog_count: usize = if let Some(ref hwm) = min_non_stale_hwm {
+        conn.query_row(
+            "SELECT COUNT(*) FROM intent WHERE list_id = ?1 AND server_ulid > ?2",
+            params![list_id, hwm],
+            |row| row.get(0),
+        )
+        .map_err(db_error)?
+    } else {
+        0
+    };
+
+    let retention_tail_cutoff = now
+        .checked_sub(jiff::Span::new().days(RETENTION_TAIL_DAYS))
+        .unwrap_or(now)
+        .strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        .to_string();
+
+    let newest_before_tail: Option<String> = conn
+        .query_row(
+            "SELECT MAX(server_ulid)
+             FROM intent
+             WHERE list_id = ?1 AND created_at < ?2",
+            params![list_id, retention_tail_cutoff],
+            |row| row.get(0),
+        )
+        .map_err(db_error)?;
+
+    let should_compact =
+        backlog_count >= COMPACTION_BACKLOG_THRESHOLD || newest_before_tail.is_some();
+    if !should_compact {
+        mark_compaction_check(conn, list_id)?;
+        return Ok(());
+    }
+
+    let compact_to_ulid = match (min_non_stale_hwm, newest_before_tail) {
+        (Some(a), Some(b)) => Some(if a < b { a } else { b }),
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    };
+
+    let Some(compact_to_ulid) = compact_to_ulid else {
+        mark_compaction_check(conn, list_id)?;
+        return Ok(());
+    };
+
+    if compact_to_ulid >= latest_ulid {
+        mark_compaction_check(conn, list_id)?;
+        return Ok(());
+    }
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT server_ulid, device_ulid, device_id, list_id, intent_type, payload_json
+             FROM intent
+             WHERE list_id = ?1 AND server_ulid <= ?2
+             ORDER BY server_ulid ASC",
+        )
+        .map_err(db_error)?;
+
+    let rows = stmt
+        .query_map(params![list_id, compact_to_ulid], |row| {
+            Ok(serde_json::json!({
+                "server_ulid": row.get::<_, String>(0)?,
+                "device_ulid": row.get::<_, String>(1)?,
+                "device_id": row.get::<_, String>(2)?,
+                "list_id": row.get::<_, String>(3)?,
+                "type": row.get::<_, String>(4)?,
+                "payload": serde_json::from_str::<serde_json::Value>(&row.get::<_, String>(5)?).unwrap_or(serde_json::Value::Null)
+            }))
+        })
+        .map_err(db_error)?;
+
+    let mut intents_json = Vec::new();
+    for row in rows {
+        intents_json.push(row.map_err(db_error)?);
+    }
+
+    if intents_json.is_empty() {
+        mark_compaction_check(conn, list_id)?;
+        return Ok(());
+    }
+
+    let snapshot_json = serde_json::to_string(&intents_json).map_err(json_error)?;
+    let now_s = get_current_timestamp();
+
+    conn.execute_batch("BEGIN").map_err(db_error)?;
+
+    conn.execute(
+        "INSERT INTO snapshot (list_id, snapshot_ulid, snapshot_json, created_at)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(list_id) DO UPDATE SET
+            snapshot_ulid = excluded.snapshot_ulid,
+            snapshot_json = excluded.snapshot_json,
+            created_at = excluded.created_at",
+        params![list_id, compact_to_ulid, snapshot_json, now_s],
+    )
+    .map_err(db_error)?;
+
+    conn.execute(
+        "DELETE FROM intent
+         WHERE list_id = ?1
+           AND server_ulid <= ?2",
+        params![list_id, compact_to_ulid],
+    )
+    .map_err(db_error)?;
+
+    mark_compaction_check(conn, list_id)?;
+    conn.execute_batch("COMMIT").map_err(db_error)?;
+
+    Ok(())
+}
+
 fn get_snapshot(
     conn: &Connection,
     list_id: &str,
@@ -598,6 +796,7 @@ fn route_request(
 
         (Method::Get, ["list", list_uuid, "intents"]) => {
             let conn = lock_db(state)?;
+            maybe_compact_list(&conn, list_uuid)?;
 
             let (snapshot_ulid, snapshot) = get_snapshot(&conn, list_uuid)?;
             let intents = if let Some(since) = query_params.get("since") {
