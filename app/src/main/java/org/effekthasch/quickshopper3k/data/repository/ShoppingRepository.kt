@@ -414,10 +414,13 @@ class ShoppingRepository(private val database: AppDatabase) {
                 ItemState.DEACTIVATED -> {
                     val mistakeThresholdMs = mistakeDoneSeconds * 1000L
                     allItems.forEach { item ->
-                        itemDao.setItemState(item.id, state.toString())
-                        val latestHistory = itemDao.getLatestItemAddHistory(item.id)
-                        if (latestHistory != null && now - latestHistory.addedAt <= mistakeThresholdMs) {
-                            itemDao.deleteItemAddHistoryById(latestHistory.id)
+                        val existingState = itemDao.getItemState(item.id)
+                        if (existingState?.state != ItemState.DEACTIVATED.toString()) {
+                            itemDao.setItemState(item.id, state.toString())
+                            val latestHistory = itemDao.getLatestItemAddHistory(item.id)
+                            if (latestHistory != null && now - latestHistory.addedAt <= mistakeThresholdMs) {
+                                itemDao.deleteItemAddHistoryById(latestHistory.id)
+                            }
                         }
                     }
                 }
