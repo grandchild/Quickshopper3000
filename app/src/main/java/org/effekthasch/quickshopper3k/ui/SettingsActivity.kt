@@ -206,7 +206,11 @@ class SettingsActivity : AppCompatActivity() {
                 .setTitle(R.string.join_list_title)
                 .setMessage("No such list exists on this server. You can create it.")
                 .setPositiveButton("Create") { _, _ ->
-                    // Optionally trigger list creation logic here
+                    val listId = joinListInput.text?.toString()?.trim() ?: return@setPositiveButton
+                    prefsManager.listId = listId
+                    findViewById<TextView>(R.id.listIdDisplay).text =
+                        getString(R.string.list_id_label, listId)
+                    Toast.makeText(this, R.string.list_id_reset, Toast.LENGTH_SHORT).show()
                 }
                 .setNegativeButton(R.string.cancel, null)
                 .show()
