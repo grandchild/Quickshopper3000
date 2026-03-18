@@ -58,6 +58,11 @@ struct DeviceInfo {
 
 const DB_VERSION: i32 = 1;
 
+const MAX_TOTAL_INTENTS: usize = 10_000;
+const MAX_ITEM_NAME_LEN: usize = 1000;
+const MAX_STORE_NAME_LEN: usize = 1000;
+const MAX_AMOUNT: i64 = 1_000_000;
+
 fn db_error(e: rusqlite::Error) -> ErrorInfo {
     ErrorInfo {
         status: 500,
@@ -448,9 +453,39 @@ fn route_request(
             }
 
             let conn = lock_db(state)?;
-            conn.execute_batch("BEGIN").map_err(db_error)?;
-            let now = get_current_timestamp();
-            let mut server_ulids = Vec::with_capacity(intents.len());
+
+            let mut stmt = conn
+                .prepare("SELECT COUNT(*) FROM intent WHERE list_id = ?1")
+                .map_err(db_error)?;
+            let current_count: usize = stmt
+                .query_row(params![list_uuid], |row| row.get(0))
+                .map_err(db_error)?;
+
+            let snapshot = get_snapshot(&conn, list_uuid)?.1;
+            let snapshot_intent_count = if let Some(ref snap) = snapshot {
+                if let Some(arr) = snap.as_array() {
+                    arr.len()
+                } else if let Some(arr) = snap.get("intents").and_then(|v| v.as_array()) {
+                    arr.len()
+                } else {
+                    0
+                }
+            } else {
+                0
+            };
+
+            let incoming_count = intents.len();
+            let total_intents = snapshot_intent_count + current_count + incoming_count;
+
+            if total_intents > MAX_TOTAL_INTENTS {
+                return Err(ErrorInfo {
+                    status: 413,
+                    message: format!(
+                        "Snapshot+intent limit exceeded (max {} intents)",
+                        MAX_TOTAL_INTENTS
+                    ),
+                });
+            }
 
             for intent in &intents {
                 if intent.list_id != *list_uuid {
@@ -463,6 +498,71 @@ fn route_request(
                     });
                 }
 
+                match intent.intent_type.as_str() {
+                    "add_item" | "rename_item" => {
+                        if let Some(name) = intent.payload.get("name").and_then(|v| v.as_str()) {
+                            if name.chars().count() > MAX_ITEM_NAME_LEN {
+                                return Err(ErrorInfo {
+                                    status: 400,
+                                    message: format!(
+                                        "Item name too long (max {})",
+                                        MAX_ITEM_NAME_LEN
+                                    ),
+                                });
+                            }
+                        }
+                    }
+                    "set_item_amount" => {
+                        if let Some(amount) = intent.payload.get("amount").and_then(|v| v.as_i64())
+                        {
+                            if amount >= MAX_AMOUNT {
+                                return Err(ErrorInfo {
+                                    status: 400,
+                                    message: format!("Amount too large (max {})", MAX_AMOUNT - 1),
+                                });
+                            }
+                        }
+                    }
+                    "add_store" | "update_store" => {
+                        if let Some(name) = intent.payload.get("name").and_then(|v| v.as_str()) {
+                            if name.chars().count() > MAX_STORE_NAME_LEN {
+                                return Err(ErrorInfo {
+                                    status: 400,
+                                    message: format!(
+                                        "Store name too long (max {})",
+                                        MAX_STORE_NAME_LEN
+                                    ),
+                                });
+                            }
+                        }
+                    }
+                    "bulk_add_items" => {
+                        if let Some(items) = intent.payload.get("items").and_then(|v| v.as_array())
+                        {
+                            for item in items {
+                                if let Some(name) = item.get("name").and_then(|v| v.as_str()) {
+                                    if name.chars().count() > MAX_ITEM_NAME_LEN {
+                                        return Err(ErrorInfo {
+                                            status: 400,
+                                            message: format!(
+                                                "Item name too long in bulk_add_items (max {})",
+                                                MAX_ITEM_NAME_LEN
+                                            ),
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            conn.execute_batch("BEGIN").map_err(db_error)?;
+            let now = get_current_timestamp();
+            let mut server_ulids = Vec::with_capacity(intents.len());
+
+            for intent in &intents {
                 let server_ulid = generate_ulid();
                 let payload_json = serde_json::to_string(&intent.payload).map_err(json_error)?;
 
