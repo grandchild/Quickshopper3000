@@ -115,27 +115,65 @@ class SettingsActivity : AppCompatActivity() {
             return
         }
 
-        val result = withContext(Dispatchers.IO) {
+        val serverResult = withContext(Dispatchers.IO) {
             runCatching {
                 val client = SyncHttpClient(baseUrl)
                 client.getIntents(listId, null).getOrThrow()
             }
         }
 
-        if (result.isFailure) {
-            joinListInputLayout.error = getString(R.string.error_invalid_list_id)
+        if (serverResult.isFailure) {
+            showNoSuchListModal()
             return
         }
 
-        val intents = result.getOrNull() ?: return
+        val intents = serverResult.getOrNull()
+        if (intents == null) {
+            showNoSuchListModal()
+            return
+        }
 
-        val confirmed = showConfirmDialog(
-            R.string.join_list_title,
-            R.string.join_list_warning
-        )
-        if (!confirmed) {
+        val isEmpty = withContext(Dispatchers.IO) {
+            val db = AppDatabase.getDatabase(this@SettingsActivity)
+            db.itemDao().getAllItems().isEmpty() && db.storeDao().getAllStoresList().isEmpty()
+        }
+
+        if (isEmpty) {
+            // Just join directly, skip modal
+            val applyResult = withContext(Dispatchers.IO) {
+                runCatching {
+                    val db = AppDatabase.getDatabase(this@SettingsActivity)
+                    val applier = IntentApplier(db.itemDao(), db.storeDao(), db.syncDao())
+                    for (i in 0 until intents.length()) {
+                        val json = intents.getJSONObject(i)
+                        val envelope = SyncIntentSerializer.fromJson(json) ?: continue
+                        val serverUlid = envelope.serverUlid ?: continue
+                        applier.apply(envelope.intent, serverUlid)
+                    }
+                    prefsManager.listId = listId
+                }
+            }
+            if (applyResult.isSuccess) {
+                joinListInput.text?.clear()
+                findViewById<TextView>(R.id.listIdDisplay).text =
+                    getString(R.string.list_id_label, listId)
+                Toast.makeText(this, R.string.joined_list, Toast.LENGTH_SHORT).show()
+            } else {
+                joinListInputLayout.error = getString(R.string.error_join_list)
+            }
+            return
+        }
+
+        val confirmed = showJoinOptionsDialog(listExists = true)
+        if (confirmed == JoinAction.CANCEL) {
             joinListInput.text?.clear()
             return
+        }
+
+        if (confirmed == JoinAction.BACKUP_AND_JOIN) {
+            val backupManager = org.effekthasch.quickshopper3k.util.BackupManager(this)
+            val backupResult = backupManager.exportBackup()
+            // No error handling here, user can check backup manually if needed
         }
 
         val applyResult = withContext(Dispatchers.IO) {
@@ -159,6 +197,51 @@ class SettingsActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.joined_list, Toast.LENGTH_SHORT).show()
         } else {
             joinListInputLayout.error = getString(R.string.error_join_list)
+        }
+    }
+
+    private fun showNoSuchListModal() {
+        runOnUiThread {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.join_list_title)
+                .setMessage("No such list exists on this server. You can create it.")
+                .setPositiveButton("Create") { _, _ ->
+                    // Optionally trigger list creation logic here
+                }
+                .setNegativeButton(R.string.cancel, null)
+                .show()
+        }
+    }
+
+    private enum class JoinAction { CANCEL, BACKUP_AND_JOIN, JOIN_WITHOUT_BACKUP }
+
+    private suspend fun showJoinOptionsDialog(listExists: Boolean): JoinAction = withContext(Dispatchers.Main) {
+        kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+            val builder = AlertDialog.Builder(this@SettingsActivity)
+                .setTitle(R.string.join_list_title)
+                .setMessage(
+                    if (listExists)
+                        "You have local data. What do you want to do?"
+                    else
+                        "No such list exists. You can create it, but you have local data. What do you want to do?"
+                )
+                .setNegativeButton(R.string.cancel) { _, _ ->
+                    if (cont.isActive) cont.resume(JoinAction.CANCEL) {}
+                }
+                .setNeutralButton(
+                    if (listExists) "Join without backup" else "Create without backup"
+                ) { _, _ ->
+                    if (cont.isActive) cont.resume(JoinAction.JOIN_WITHOUT_BACKUP) {}
+                }
+                .setPositiveButton(
+                    if (listExists) "Backup and join" else "Backup and create"
+                ) { _, _ ->
+                    if (cont.isActive) cont.resume(JoinAction.BACKUP_AND_JOIN) {}
+                }
+            builder.setOnCancelListener {
+                if (cont.isActive) cont.resume(JoinAction.CANCEL) {}
+            }
+            builder.show()
         }
     }
 
