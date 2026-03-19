@@ -6,10 +6,12 @@ import android.os.Bundle
 import android.text.Spannable
 import android.text.SpannableStringBuilder
 import android.text.style.ForegroundColorSpan
+import android.graphics.Rect
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.Gravity
+import android.view.ViewTreeObserver
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.PopupWindow
@@ -49,6 +51,8 @@ class MainFragment :
     private lateinit var prefsManager: PreferencesManager
 
     private var currentStoreName: String? = null
+    private var lastKeyboardVisible = false
+    private var keyboardListener: ViewTreeObserver.OnGlobalLayoutListener? = null
 
     private val importBackupLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
@@ -271,6 +275,8 @@ class MainFragment :
     }
 
     private fun setupInlineSearch() {
+
+
         binding.searchInput.setOnEditorActionListener { _, actionId, _ ->
             when (actionId) {
                 EditorInfo.IME_ACTION_DONE -> {
@@ -316,6 +322,35 @@ class MainFragment :
 
             override fun afterTextChanged(s: android.text.Editable?) {}
         })
+    }
+
+    private fun startKeyboardDismissListener() {
+        if (keyboardListener != null) return
+        val rootView = binding.root
+        lastKeyboardVisible = isKeyboardVisible(rootView)
+        val listener = ViewTreeObserver.OnGlobalLayoutListener {
+            val keyboardVisible = isKeyboardVisible(rootView)
+            if (!keyboardVisible && lastKeyboardVisible && binding.searchContainer.visibility == View.VISIBLE) {
+                dismissSearch()
+            }
+            lastKeyboardVisible = keyboardVisible
+        }
+        rootView.viewTreeObserver.addOnGlobalLayoutListener(listener)
+        keyboardListener = listener
+    }
+
+    private fun stopKeyboardDismissListener() {
+        val listener = keyboardListener ?: return
+        binding.root.viewTreeObserver.removeOnGlobalLayoutListener(listener)
+        keyboardListener = null
+    }
+
+    private fun isKeyboardVisible(rootView: View): Boolean {
+        val r = Rect()
+        rootView.getWindowVisibleDisplayFrame(r)
+        val screenHeight = rootView.rootView.height
+        val keyboardHeight = screenHeight - r.height()
+        return keyboardHeight > screenHeight * 0.15
     }
 
     private fun observeData() {
@@ -427,6 +462,7 @@ class MainFragment :
         binding.searchInput.selectAll()
         val imm = getSystemService(requireContext(), InputMethodManager::class.java)
         imm?.showSoftInput(binding.searchInput, InputMethodManager.SHOW_IMPLICIT)
+        startKeyboardDismissListener()
         (activity as? MainActivity)?.hideBottomBar()
         updateAddButtonVisibility(viewModel.searchQuery.value ?: "")
     }
@@ -436,6 +472,7 @@ class MainFragment :
         binding.addItemButton.visibility = View.GONE
         val imm = getSystemService(requireContext(), InputMethodManager::class.java)
         imm?.hideSoftInputFromWindow(binding.searchInput.windowToken, 0)
+        stopKeyboardDismissListener()
         (activity as? MainActivity)?.showBottomBar()
     }
 
@@ -445,6 +482,14 @@ class MainFragment :
         binding.searchInput.clearFocus()
         hideInlineSearch()
         updateSearchActiveBar()
+    }
+
+    override fun onBackPressed(): Boolean {
+        if (binding.searchContainer.visibility == View.VISIBLE) {
+            dismissSearch()
+            return true
+        }
+        return false
     }
 
     private fun showItemContextMenu(storeItem: StoreItem, rawX: Float, rawY: Float) {
@@ -832,6 +877,7 @@ class MainFragment :
     }
 
     override fun onDestroyView() {
+        stopKeyboardDismissListener()
         super.onDestroyView()
         _binding = null
     }

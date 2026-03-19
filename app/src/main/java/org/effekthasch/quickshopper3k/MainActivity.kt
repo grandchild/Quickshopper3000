@@ -8,9 +8,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
 import androidx.appcompat.app.AppCompatActivity
-
 import androidx.lifecycle.lifecycleScope
-
 import androidx.fragment.app.Fragment
 import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.bottomappbar.BottomAppBar
@@ -54,6 +52,7 @@ class MainActivity : AppCompatActivity() {
         setupDoneVisibilityButton()
         applyHandednessSettings()
         updateLockscreenFlags(currentPage)
+
     }
 
     override fun onResume() {
@@ -64,6 +63,14 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         syncManager.stop()
+    }
+
+    override fun onBackPressed() {
+        val fragment = getCurrentFragment()
+        if (fragment != null && fragment.onBackPressed()) {
+            return
+        }
+        super.onBackPressed()
     }
 
     private fun setupBottomAppBar() {
@@ -323,6 +330,7 @@ class MainActivity : AppCompatActivity() {
             else -> super.onOptionsItemSelected(item)
         }
     }
+
 
     fun hideBottomBar() {
         binding.bottomAppBar.performHide()

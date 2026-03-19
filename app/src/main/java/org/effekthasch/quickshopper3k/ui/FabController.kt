@@ -7,4 +7,6 @@ interface FabController {
     fun updateFabIcon(iconRes: Int, contentDescription: String)
     fun showFab()
     fun hideFab()
+
+    fun onBackPressed(): Boolean = false
 }
