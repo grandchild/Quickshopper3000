@@ -20,6 +20,9 @@ interface StoreDao {
     @Query("SELECT * FROM stores WHERE uuid = :uuid")
     suspend fun getStoreByUuid(uuid: String): StoreEntity?
 
+    @Query("SELECT uuid, name FROM stores WHERE uuid IN (:uuids)")
+    suspend fun getNamesByUuids(uuids: List<String>): List<StoreUuidName>
+
     @Insert
     suspend fun insertStore(store: StoreEntity): Long
 

@@ -55,6 +55,9 @@ interface ItemDao {
     @Query("SELECT * FROM items WHERE uuid = :uuid")
     suspend fun getItemByUuid(uuid: String): ItemEntity?
 
+    @Query("SELECT uuid, name FROM items WHERE uuid IN (:uuids)")
+    suspend fun getNamesByUuids(uuids: List<String>): List<ItemUuidName>
+
     @Insert
     suspend fun insertItem(item: ItemEntity): Long
 
@@ -166,6 +169,8 @@ interface ItemDao {
         }
     }
 }
+
+data class ItemUuidName(val uuid: String, val name: String)
 
 data class ItemWithState(
     val id: Long,

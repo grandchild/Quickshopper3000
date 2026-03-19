@@ -10,6 +10,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
+import org.effekthasch.quickshopper3k.ui.DebugActivity
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import kotlinx.coroutines.Dispatchers
@@ -57,6 +58,10 @@ class SettingsActivity : AppCompatActivity() {
         joinListInput = findViewById(R.id.joinListInput)
         joinListInputLayout = findViewById(R.id.joinListInputLayout)
         setupJoinInput()
+
+        findViewById<MaterialButton>(R.id.debugButton).setOnClickListener {
+            startActivity(Intent(this, DebugActivity::class.java))
+        }
 
         findViewById<MaterialButton>(R.id.resetListIdButton).setOnClickListener {
             lifecycleScope.launch { resetListId() }

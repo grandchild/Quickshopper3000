@@ -126,4 +126,8 @@
     <string name="drag_handle">Drag to reorder</string>
 
     <string name="item_state">Item state</string>
+
+    <!-- Debug -->
+    <string name="debug">Debug</string>
+    <string name="debug_server_state">Server state…</string>
 </resources>

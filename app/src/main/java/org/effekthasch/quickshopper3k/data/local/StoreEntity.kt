@@ -12,3 +12,5 @@ data class StoreEntity(
     val name: String,
     val specialtyStore: Boolean = false
 )
+
+data class StoreUuidName(val uuid: String, val name: String)

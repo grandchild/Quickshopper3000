@@ -29,6 +29,13 @@
             android:parentActivityName=".MainActivity"
         />
 
+        <activity
+            android:name=".ui.DebugActivity"
+            android:theme="@style/Theme.QuickShopper3k"
+            android:parentActivityName=".ui.SettingsActivity"
+            android:exported="true"
+        />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

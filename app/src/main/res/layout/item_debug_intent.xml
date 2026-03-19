@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp"
+    android:gravity="center_vertical"
+>
+
+    <ImageView
+        android:id="@+id/intentIcon"
+        android:layout_width="22dp"
+        android:layout_height="22dp"
+        android:layout_marginEnd="8dp"
+        android:visibility="gone"
+        android:contentDescription="@null"
+    />
+
+    <TextView
+        android:id="@+id/intentLabel"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:fontFamily="monospace"
+        android:textSize="13sp"
+    />
+
+    <TextView
+        android:id="@+id/intentDevice"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:textAppearance="?attr/textAppearanceLabelSmall"
+        android:fontFamily="monospace"
+        android:textSize="11sp"
+    />
+
+</LinearLayout>
