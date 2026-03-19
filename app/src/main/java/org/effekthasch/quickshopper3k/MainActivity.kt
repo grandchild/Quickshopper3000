@@ -254,10 +254,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupFab() {
-        updateFabForPage(0)
+        updateFabForPage(currentPage)
+        binding.fab.imageTintList = null
         binding.fab.setOnClickListener {
             getCurrentFragment()?.onFabClick()
         }
+        binding.fab.show()
     }
 
     private fun getCurrentFragment(): FabController? {
@@ -289,8 +291,10 @@ class MainActivity : AppCompatActivity() {
             }
 
             1 -> {
-                binding.fab.setImageResource(android.R.drawable.ic_menu_search)
+                binding.fab.setImageResource(R.drawable.ic_search_plus)
+                binding.fab.imageTintList = null
                 binding.fab.contentDescription = getString(R.string.search)
+                binding.fab.show()
             }
         }
     }
