@@ -212,9 +212,13 @@ class ShoppingRepository(private val database: AppDatabase) {
 
     private suspend fun recordItemAdded(itemId: Long, addedAt: Long, historyDays: Int) {
         itemDao.insertItemAddHistory(ItemAddHistoryEntity(itemId = itemId, addedAt = addedAt))
-        val safeDays = if (historyDays <= 0) 1 else historyDays
-        val cutoff = addedAt - safeDays * 24 * 60 * 60 * 1000L
+        val cutoff = historyCutoff(addedAt, historyDays)
         itemDao.deleteItemAddHistoryOlderThan(cutoff)
+    }
+
+    private fun historyCutoff(addedAt: Long, historyDays: Int): Long {
+        val safeDays = if (historyDays <= 0) 1 else historyDays
+        return addedAt - safeDays * 24 * 60 * 60 * 1000L
     }
 
     fun getAllStores(): Flow<List<Store>> {
@@ -408,37 +412,48 @@ class ShoppingRepository(private val database: AppDatabase) {
         return try {
             val now = System.currentTimeMillis()
             val allItems = itemDao.getAllItems()
+            val allStatesMap = itemDao.getAllItemStates().associateBy { it.itemId }
+            val deactivatedStates = allStatesMap.values.filter { it.state == ItemState.DEACTIVATED.toString() }
+            val nonDeactivatedItemIds = allItems.mapNotNull { item ->
+                val existing = allStatesMap[item.id]
+                if (existing?.state != ItemState.DEACTIVATED.toString()) item.id else null
+            }
+
             when (state) {
                 ItemState.ACTIVATED -> {
-                    allItems.forEach { item ->
-                        val existingState = itemDao.getItemState(item.id)
-                        val lastDoneAt = if (existingState?.state == ItemState.DEACTIVATED.toString()) {
-                            existingState.stateChangedAt
+                    val reactivateThresholdMs = reactivateMinSeconds * 1000L
+                    val cutoff = historyCutoff(now, historyDays)
+
+                    val toRecord = deactivatedStates.mapNotNull { stateEntity ->
+                        val lastDoneAt = stateEntity.stateChangedAt
+                        if (lastDoneAt == null || now - lastDoneAt > reactivateThresholdMs) {
+                            ItemAddHistoryEntity(itemId = stateEntity.itemId, addedAt = now)
                         } else {
                             null
                         }
+                    }
 
-                        itemDao.setItemState(item.id, state.toString())
+                    itemDao.setAllItemsToState(state.toString())
 
-                        val shouldRecord = existingState?.state == ItemState.DEACTIVATED.toString() &&
-                                (lastDoneAt == null || now - lastDoneAt > reactivateMinSeconds * 1000L)
-
-                        if (shouldRecord) {
-                            recordItemAdded(item.id, now, historyDays)
-                        }
+                    if (toRecord.isNotEmpty()) {
+                        itemDao.insertItemAddHistories(toRecord)
+                        itemDao.deleteItemAddHistoryOlderThan(cutoff)
                     }
                 }
 
                 ItemState.DEACTIVATED -> {
                     val mistakeThresholdMs = mistakeDoneSeconds * 1000L
-                    allItems.forEach { item ->
-                        val existingState = itemDao.getItemState(item.id)
-                        if (existingState?.state != ItemState.DEACTIVATED.toString()) {
-                            itemDao.setItemState(item.id, state.toString())
-                            val latestHistory = itemDao.getLatestItemAddHistory(item.id)
-                            if (latestHistory != null && now - latestHistory.addedAt <= mistakeThresholdMs) {
-                                itemDao.deleteItemAddHistoryById(latestHistory.id)
-                            }
+
+                    val affectedIds = nonDeactivatedItemIds
+
+                    itemDao.setAllItemsToState(state.toString())
+
+                    if (affectedIds.isNotEmpty()) {
+                        val latestHistories = itemDao.getLatestItemAddHistoryForItemIds(affectedIds)
+                        val idsToDelete =
+                            latestHistories.filter { now - it.addedAt <= mistakeThresholdMs }.map { it.id }
+                        if (idsToDelete.isNotEmpty()) {
+                            itemDao.deleteItemAddHistoryByIds(idsToDelete)
                         }
                     }
                 }

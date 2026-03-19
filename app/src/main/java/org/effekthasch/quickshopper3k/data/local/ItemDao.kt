@@ -73,6 +73,9 @@ interface ItemDao {
     @Query("SELECT * FROM item_states WHERE item_id = :itemId")
     suspend fun getItemState(itemId: Long): ItemStateEntity?
 
+    @Query("SELECT * FROM item_states")
+    suspend fun getAllItemStates(): List<ItemStateEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateItemState(state: ItemStateEntity)
 
@@ -82,11 +85,28 @@ interface ItemDao {
     @Insert
     suspend fun insertItemAddHistory(history: ItemAddHistoryEntity): Long
 
+    @Insert
+    suspend fun insertItemAddHistories(histories: List<ItemAddHistoryEntity>): List<Long>
+
     @Query("SELECT * FROM item_add_history WHERE item_id = :itemId ORDER BY added_at DESC LIMIT 1")
     suspend fun getLatestItemAddHistory(itemId: Long): ItemAddHistoryEntity?
 
+    @Query(
+        """
+        SELECT id, item_id, added_at
+        FROM item_add_history
+        WHERE item_id IN (:itemIds)
+        GROUP BY item_id
+        HAVING added_at = MAX(added_at)
+    """
+    )
+    suspend fun getLatestItemAddHistoryForItemIds(itemIds: List<Long>): List<ItemAddHistoryEntity>
+
     @Query("DELETE FROM item_add_history WHERE id = :historyId")
     suspend fun deleteItemAddHistoryById(historyId: Long)
+
+    @Query("DELETE FROM item_add_history WHERE id IN (:ids)")
+    suspend fun deleteItemAddHistoryByIds(ids: List<Long>): Int
 
     @Query("DELETE FROM item_add_history WHERE item_id = :itemId")
     suspend fun deleteItemAddHistoryByItemId(itemId: Long)
