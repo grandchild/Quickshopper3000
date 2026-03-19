@@ -16,3 +16,4 @@ local.properties
 /target/
 /db/
 /todo.txt
+/tests/items.txt
