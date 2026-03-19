@@ -43,6 +43,7 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
     private val _reactivateMinSeconds = MutableLiveData(3600)
     private val _flushRecentlyDoneAt = MutableLiveData<Long?>(null)
     private val _isDragging = MutableLiveData(false)
+    private var resetInFlight = false
 
     val stores: LiveData<List<Store>> = repository.getAllStores().asLiveData()
 
@@ -62,6 +63,35 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
             val now = System.currentTimeMillis()
             val minutesThreshold = now - (recentMinutes * 60 * 1000L)
             val recentThreshold = if (flushAt != null && flushAt > minutesThreshold) flushAt else minutesThreshold
+            val safetyCutoff = recentThreshold - (60 * 1000L)
+
+            val displayItems = allItems.map { storeItem ->
+                val changedAt = storeItem.item.stateChangedAt ?: 0L
+                if (storeItem.item.state == ItemState.DEACTIVATED && changedAt < recentThreshold) {
+                    storeItem.copy(item = storeItem.item.copy(amount = 1))
+                } else {
+                    storeItem
+                }
+            }
+
+            if (!resetInFlight) {
+                val candidates = allItems.filter { storeItem ->
+                    val changedAt = storeItem.item.stateChangedAt ?: 0L
+                    storeItem.item.state == ItemState.DEACTIVATED &&
+                            changedAt < safetyCutoff &&
+                            storeItem.item.amount != 1
+                }
+                if (candidates.isNotEmpty()) {
+                    resetInFlight = true
+                    viewModelScope.launch {
+                        try {
+                            repository.resetStaleAmounts(safetyCutoff)
+                        } finally {
+                            resetInFlight = false
+                        }
+                    }
+                }
+            }
 
             val normalizedQuery = if (query.isBlank()) "" else normalizeForSearch(query)
 
@@ -83,14 +113,14 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
             fun matchesAvailability(storeItem: StoreItem): Boolean =
                 currentStore == null || currentStore == 0L || storeItem.isAvailable
 
-            var result = allItems.filter { storeItem ->
+            var result = displayItems.filter { storeItem ->
                 matchesSearch(storeItem) && matchesVisibility(storeItem, visibilityMode) && matchesAvailability(
                     storeItem
                 )
             }
 
             if (result.isEmpty() && query.isNotBlank() && visibilityMode != DoneVisibilityMode.ALL) {
-                result = allItems.filter { storeItem ->
+                result = displayItems.filter { storeItem ->
                     matchesSearch(storeItem) && matchesVisibility(
                         storeItem,
                         DoneVisibilityMode.ALL

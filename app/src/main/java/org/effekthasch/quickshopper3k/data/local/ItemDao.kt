@@ -112,6 +112,21 @@ interface ItemDao {
     @Query("UPDATE items SET amount = :amount WHERE id = :itemId")
     suspend fun updateItemAmount(itemId: Long, amount: Int)
 
+    @Query(
+        """
+        SELECT i.id
+        FROM items i
+        JOIN item_states s ON i.id = s.item_id
+        WHERE s.state = 'DEACTIVATED'
+          AND s.state_changed_at < :cutoff
+          AND i.amount <> 1
+        """
+    )
+    suspend fun findStaleDoneItemIdsWithNonDefaultAmount(cutoff: Long): List<Long>
+
+    @Query("UPDATE items SET amount = 1 WHERE id IN (:ids) AND amount <> 1")
+    suspend fun resetAmountsByIds(ids: List<Long>): Int
+
     @Query("DELETE FROM item_states")
     suspend fun deleteAllItemStates()
 

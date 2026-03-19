@@ -309,6 +309,24 @@ class ShoppingRepository(private val database: AppDatabase) {
         }
     }
 
+    suspend fun resetStaleAmounts(cutoffMs: Long): Result<Unit> {
+        return try {
+            val ids = itemDao.findStaleDoneItemIdsWithNonDefaultAmount(cutoffMs)
+            if (ids.isEmpty()) return Result.success(Unit)
+
+            itemDao.resetAmountsByIds(ids)
+
+            val uuids = itemDao.getUuidsByIds(ids)
+            uuids.forEach { uuid ->
+                emitter.emit(SyncIntent.SetItemAmount(uuid, 1))
+            }
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun setItemAvailability(storeId: Long, itemId: Long, isAvailable: Boolean): Result<Unit> {
         return try {
             storeDao.setItemAvailability(storeId, itemId, isAvailable)
