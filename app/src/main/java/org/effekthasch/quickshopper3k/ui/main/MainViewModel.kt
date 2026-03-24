@@ -113,19 +113,15 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
             fun matchesAvailability(storeItem: StoreItem): Boolean =
                 currentStore == null || currentStore == 0L || storeItem.isAvailable
 
-            var result = displayItems.filter { storeItem ->
-                matchesSearch(storeItem) && matchesVisibility(storeItem, visibilityMode) && matchesAvailability(
+            val effectiveMode = if (query.isNotBlank() && visibilityMode == DoneVisibilityMode.RECENT)
+                DoneVisibilityMode.ALL
+            else
+                visibilityMode
+
+            val result = displayItems.filter { storeItem ->
+                matchesSearch(storeItem) && matchesVisibility(storeItem, effectiveMode) && matchesAvailability(
                     storeItem
                 )
-            }
-
-            if (result.isEmpty() && query.isNotBlank() && visibilityMode != DoneVisibilityMode.ALL) {
-                result = displayItems.filter { storeItem ->
-                    matchesSearch(storeItem) && matchesVisibility(
-                        storeItem,
-                        DoneVisibilityMode.ALL
-                    ) && matchesAvailability(storeItem)
-                }
             }
 
             value = result
