@@ -15,7 +15,7 @@
 local.properties
 /target/
 /db/
-/todo.txt
+/todo.*
 /tests/items.txt
 /.stfolder/
 /.stignore
