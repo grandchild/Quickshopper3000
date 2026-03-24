@@ -283,7 +283,7 @@ abstract class BaseListFragment<T> : Fragment() {
                     val bottom = top + iconSizeInt
 
                     it.setBounds(left, top, right, bottom)
-                    it.setTint(android.graphics.Color.WHITE)
+                    it.mutate().setTint(android.graphics.Color.WHITE)
                     it.draw(c)
                 }
             }
