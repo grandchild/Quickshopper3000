@@ -678,7 +678,7 @@ class MainFragment :
             .setPositiveButton(R.string.import_preview_import_only) { _, _ ->
                 importNewItems(preview.newItems)
             }
-            .setNegativeButton(R.string.import_preview_import_activate_all) { _, _ ->
+            .setNegativeButton(R.string.import_preview_import_activate_existing) { _, _ ->
                 importAndActivateItems(preview.orderedItems.map { it.name }, preview.newItems)
             }
             .setNeutralButton(R.string.cancel, null)

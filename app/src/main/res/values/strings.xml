@@ -44,8 +44,8 @@
 
     <string name="import_preview_import_only">Import new only</string>
     <string
-        name="import_preview_import_activate_all"
-    >Import new &amp; Activate all</string>
+        name="import_preview_import_activate_existing"
+    >Import new &amp; Activate existing</string>
 
 
 
