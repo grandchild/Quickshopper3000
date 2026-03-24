@@ -115,8 +115,7 @@ class MainActivity : AppCompatActivity() {
             popup.menu.findItem(R.id.action_edit_store)?.isVisible = currentPage == 0
             popup.menu.findItem(R.id.action_delete_store)?.isVisible = currentPage == 0
             popup.menu.findItem(R.id.action_import_items)?.isVisible = currentPage == 1
-            popup.menu.findItem(R.id.action_import_backup)?.isVisible = currentPage == 1
-            popup.menu.findItem(R.id.action_export_backup)?.isVisible = currentPage == 1
+
             popup.menu.findItem(R.id.action_activate_all)?.isVisible = currentPage == 1
             popup.menu.findItem(R.id.action_deactivate_all)?.isVisible = currentPage == 1
             popup.menu.findItem(R.id.action_flush_recently_done)?.isVisible = currentPage == 1

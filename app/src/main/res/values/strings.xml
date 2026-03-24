@@ -127,6 +127,9 @@
 
     <string name="item_state">Item state</string>
 
+    <!-- Backup -->
+    <string name="backup">Backup</string>
+
     <!-- Debug -->
     <string name="debug">Debug</string>
     <string name="debug_server_state">Server state…</string>

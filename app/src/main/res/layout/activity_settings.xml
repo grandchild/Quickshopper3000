@@ -88,9 +88,45 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/debug"
+        android:text="@string/backup"
         android:textAppearance="?attr/textAppearanceBodyLarge"
         android:layout_marginTop="24dp"
+        android:layout_marginBottom="8dp"
+    />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="start"
+        android:layout_marginBottom="8dp"
+    >
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/exportBackupButton"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:text="@string/export_backup"
+        />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/importBackupButton"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/import_backup"
+        />
+
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/debug"
+        android:textAppearance="?attr/textAppearanceBodyLarge"
+        android:layout_marginTop="16dp"
         android:layout_marginBottom="8dp"
     />
 

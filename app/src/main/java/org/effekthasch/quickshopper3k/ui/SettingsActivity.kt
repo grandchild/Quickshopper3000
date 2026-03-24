@@ -1,6 +1,7 @@
 package org.effekthasch.quickshopper3k.ui
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -8,6 +9,8 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
 import org.effekthasch.quickshopper3k.ui.DebugActivity
@@ -25,6 +28,7 @@ import org.effekthasch.quickshopper3k.data.local.SyncStateEntity
 import org.effekthasch.quickshopper3k.data.sync.IntentApplier
 import org.effekthasch.quickshopper3k.data.sync.SyncHttpClient
 import org.effekthasch.quickshopper3k.data.sync.SyncIntentSerializer
+import org.effekthasch.quickshopper3k.util.BackupManager
 import org.effekthasch.quickshopper3k.util.PreferencesManager
 
 class SettingsActivity : AppCompatActivity() {
@@ -33,6 +37,12 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var joinListInput: TextInputEditText
     private lateinit var joinListInputLayout: TextInputLayout
     private var validateJob: Job? = null
+
+    private val importBackupLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { handleImportBackup(it) }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,6 +75,14 @@ class SettingsActivity : AppCompatActivity() {
 
         findViewById<MaterialButton>(R.id.resetListIdButton).setOnClickListener {
             lifecycleScope.launch { resetListId() }
+        }
+
+        findViewById<MaterialButton>(R.id.exportBackupButton).setOnClickListener {
+            exportBackup()
+        }
+
+        findViewById<MaterialButton>(R.id.importBackupButton).setOnClickListener {
+            importBackupLauncher.launch("*/*")
         }
     }
 
@@ -270,6 +288,84 @@ class SettingsActivity : AppCompatActivity() {
                         if (cont.isActive) cont.resume(false) {}
                     }
                     .show()
+            }
+        }
+    }
+
+    private fun exportBackup() {
+        val progressDialog = AlertDialog.Builder(this)
+            .setMessage(R.string.exporting_backup)
+            .setCancelable(false)
+            .create()
+        progressDialog.show()
+
+        lifecycleScope.launch {
+            val backupManager = BackupManager(this@SettingsActivity)
+            val result = backupManager.exportBackup()
+
+            progressDialog.dismiss()
+
+            result.onSuccess { backupFile ->
+                val uri = FileProvider.getUriForFile(
+                    this@SettingsActivity,
+                    "${packageName}.fileprovider",
+                    backupFile
+                )
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/zip"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                startActivity(Intent.createChooser(shareIntent, getString(R.string.export_backup)))
+            }.onFailure {
+                Toast.makeText(this@SettingsActivity, R.string.error_backup_export, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun handleImportBackup(uri: Uri) {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.import_backup_title)
+            .setMessage(R.string.import_backup_warning)
+            .setPositiveButton(R.string.ok) { _, _ -> performImportBackup(uri) }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun performImportBackup(uri: Uri) {
+        val progressDialog = AlertDialog.Builder(this)
+            .setMessage(R.string.importing_backup)
+            .setCancelable(false)
+            .create()
+        progressDialog.show()
+
+        lifecycleScope.launch {
+            try {
+                val tempFile = java.io.File(cacheDir, "temp_backup.zip")
+                contentResolver.openInputStream(uri)?.use { input ->
+                    tempFile.outputStream().use { output -> input.copyTo(output) }
+                }
+
+                val backupManager = BackupManager(this@SettingsActivity)
+                val result = backupManager.importBackup(tempFile)
+
+                tempFile.delete()
+                progressDialog.dismiss()
+
+                result.onSuccess {
+                    Toast.makeText(this@SettingsActivity, R.string.backup_imported, Toast.LENGTH_LONG).show()
+                    recreate()
+                }.onFailure { error ->
+                    val message = when {
+                        error is BackupManager.LegacyBackupException -> R.string.error_legacy_backup
+                        error is IllegalArgumentException -> R.string.error_invalid_backup
+                        else -> R.string.error_backup_import
+                    }
+                    Toast.makeText(this@SettingsActivity, message, Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                progressDialog.dismiss()
+                Toast.makeText(this@SettingsActivity, R.string.error_backup_import, Toast.LENGTH_SHORT).show()
             }
         }
     }

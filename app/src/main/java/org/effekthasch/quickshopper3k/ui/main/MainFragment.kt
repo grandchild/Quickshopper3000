@@ -1,7 +1,6 @@
 package org.effekthasch.quickshopper3k.ui.main
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.text.Spannable
 import android.text.SpannableStringBuilder
@@ -15,11 +14,9 @@ import android.view.ViewTreeObserver
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.PopupWindow
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.getSystemService
-import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.snackbar.Snackbar
@@ -36,7 +33,6 @@ import org.effekthasch.quickshopper3k.databinding.FragmentMainBinding
 import org.effekthasch.quickshopper3k.domain.model.ItemState
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
 import org.effekthasch.quickshopper3k.ui.FabController
-import org.effekthasch.quickshopper3k.util.BackupManager
 import org.effekthasch.quickshopper3k.util.DoneVisibilityMode
 import org.effekthasch.quickshopper3k.util.PreferencesManager
 
@@ -54,11 +50,6 @@ class MainFragment :
     private var lastKeyboardVisible = false
     private var keyboardListener: ViewTreeObserver.OnGlobalLayoutListener? = null
 
-    private val importBackupLauncher = registerForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let { handleImportBackup(it) }
-    }
 
     override fun provideAdapter() = MainItemsAdapter(
         onItemClick = {
@@ -144,15 +135,6 @@ class MainFragment :
                 true
             }
 
-            R.id.action_import_backup -> {
-                importBackupLauncher.launch("*/*")
-                true
-            }
-
-            R.id.action_export_backup -> {
-                exportBackup()
-                true
-            }
 
             R.id.action_activate_all -> {
                 viewModel.activateAll { result ->
@@ -782,99 +764,6 @@ class MainFragment :
         startActivity(Intent.createChooser(shareIntent, getString(R.string.share_active_items)))
     }
 
-    private fun exportBackup() {
-        val progressDialog = AlertDialog.Builder(requireContext())
-            .setMessage(R.string.exporting_backup)
-            .setCancelable(false)
-            .create()
-        progressDialog.show()
-
-        lifecycleScope.launch {
-            val backupManager = BackupManager(requireContext())
-            val result = backupManager.exportBackup()
-
-            progressDialog.dismiss()
-
-            result.onSuccess { backupFile ->
-                val uri = FileProvider.getUriForFile(
-                    requireContext(),
-                    "${requireContext().packageName}.fileprovider",
-                    backupFile
-                )
-
-                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                    type = "application/zip"
-                    putExtra(Intent.EXTRA_STREAM, uri)
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-
-                startActivity(Intent.createChooser(shareIntent, getString(R.string.export_backup)))
-
-                Snackbar.make(binding.root, R.string.backup_exported, Snackbar.LENGTH_SHORT).show()
-            }.onFailure {
-                Snackbar.make(binding.root, R.string.error_backup_export, Snackbar.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    private fun handleImportBackup(uri: Uri) {
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.import_backup_title)
-            .setMessage(R.string.import_backup_warning)
-            .setPositiveButton(R.string.ok) { _, _ ->
-                performImportBackup(uri)
-            }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
-    }
-
-    private fun performImportBackup(uri: Uri) {
-        val progressDialog = AlertDialog.Builder(requireContext())
-            .setMessage(R.string.importing_backup)
-            .setCancelable(false)
-            .create()
-        progressDialog.show()
-
-        lifecycleScope.launch {
-            try {
-                val tempFile = java.io.File(requireContext().cacheDir, "temp_backup.zip")
-                requireContext().contentResolver.openInputStream(uri)?.use { input ->
-                    tempFile.outputStream().use { output ->
-                        input.copyTo(output)
-                    }
-                }
-
-                val backupManager = BackupManager(requireContext())
-                val result = backupManager.importBackup(tempFile)
-
-                tempFile.delete()
-                progressDialog.dismiss()
-
-                result.onSuccess {
-                    Snackbar.make(binding.root, R.string.backup_imported, Snackbar.LENGTH_LONG).show()
-                    requireActivity().recreate()
-                }.onFailure { error ->
-                    if (error is BackupManager.LegacyBackupException) {
-                        Snackbar.make(
-                            binding.root,
-                            R.string.error_legacy_backup,
-                            Snackbar.LENGTH_SHORT
-                        ).show()
-                    } else {
-                        val message = if (error is IllegalArgumentException) {
-                            R.string.error_invalid_backup
-                        } else {
-                            R.string.error_backup_import
-                        }
-                        Snackbar.make(binding.root, message, Snackbar.LENGTH_SHORT).show()
-                    }
-                }
-            } catch (e: Exception) {
-                progressDialog.dismiss()
-                Snackbar.make(binding.root, R.string.error_backup_import, Snackbar.LENGTH_SHORT).show()
-            }
-        }
-    }
 
     override fun onDestroyView() {
         stopKeyboardDismissListener()
