@@ -116,8 +116,18 @@ class MainActivity : AppCompatActivity() {
             popup.menu.findItem(R.id.action_delete_store)?.isVisible = currentPage == 0
             popup.menu.findItem(R.id.action_import_items)?.isVisible = currentPage == 1
 
-            popup.menu.findItem(R.id.action_activate_all)?.isVisible = currentPage == 1
-            popup.menu.findItem(R.id.action_deactivate_all)?.isVisible = currentPage == 1
+            popup.menu.findItem(R.id.action_activate_all)?.let {
+                it.title = buildMenuTitle(R.string.activate_all, R.drawable.ic_state_need)
+                it.isVisible = currentPage == 1
+            }
+            popup.menu.findItem(R.id.action_deactivate_all)?.let {
+                it.title = buildMenuTitle(R.string.deactivate_all, R.drawable.ic_state_done)
+                it.isVisible = currentPage == 1
+            }
+            popup.menu.findItem(R.id.action_activate_postponed)?.let {
+                it.title = buildMenuTitle(R.string.activate_postponed, R.drawable.ic_state_need, R.drawable.ic_state_na)
+                it.isVisible = currentPage == 1
+            }
             popup.menu.findItem(R.id.action_flush_recently_done)?.isVisible = currentPage == 1
             popup.menu.findItem(R.id.action_share_active_items)?.isVisible = currentPage == 1
 
@@ -127,6 +137,27 @@ class MainActivity : AppCompatActivity() {
 
             popup.show()
         }
+    }
+
+    private fun buildMenuTitle(templateRes: Int, vararg iconRes: Int): CharSequence {
+        val iconSize = (resources.displayMetrics.density * 18).toInt()
+        val placeholder = "\uFFFC"
+        val formatted = getString(templateRes, *Array(iconRes.size) { placeholder })
+        val spannable = android.text.SpannableString(formatted)
+        var searchFrom = 0
+        for (res in iconRes) {
+            val idx = formatted.indexOf(placeholder, searchFrom)
+            if (idx < 0) break
+            val drawable = getDrawable(res) ?: run { searchFrom = idx + 1; continue }
+            drawable.setBounds(0, 0, iconSize, iconSize)
+            spannable.setSpan(
+                android.text.style.ImageSpan(drawable, android.text.style.ImageSpan.ALIGN_BOTTOM),
+                idx, idx + 1,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            searchFrom = idx + 1
+        }
+        return spannable
     }
 
     private fun setupDoneVisibilityButton() {

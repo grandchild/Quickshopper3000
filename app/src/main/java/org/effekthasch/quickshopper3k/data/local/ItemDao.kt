@@ -150,6 +150,12 @@ interface ItemDao {
     @Query("UPDATE items SET amount = 1 WHERE id IN (:ids) AND amount <> 1")
     suspend fun resetAmountsByIds(ids: List<Long>): Int
 
+    @Query("SELECT * FROM item_states WHERE state = 'POSTPONED'")
+    suspend fun getAllPostponedStates(): List<ItemStateEntity>
+
+    @Query("DELETE FROM item_states WHERE state = 'POSTPONED'")
+    suspend fun deleteAllPostponedStates()
+
     @Query("DELETE FROM item_states")
     suspend fun deleteAllItemStates()
 

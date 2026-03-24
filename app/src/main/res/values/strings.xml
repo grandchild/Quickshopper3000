@@ -20,8 +20,9 @@
     <string name="import_backup">Import backup</string>
     <string name="export_backup">Export backup</string>
     <string name="share_active_items">Share active items</string>
-    <string name="activate_all">all</string>
-    <string name="deactivate_all">all</string>
+    <string name="activate_all">%1$s all</string>
+    <string name="deactivate_all">%1$s all</string>
+    <string name="activate_postponed">%1$s all %2$s</string>
 
 
 

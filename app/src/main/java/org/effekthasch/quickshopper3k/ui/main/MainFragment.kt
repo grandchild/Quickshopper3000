@@ -154,6 +154,15 @@ class MainFragment :
                 true
             }
 
+            R.id.action_activate_postponed -> {
+                viewModel.activateAllPostponed { result ->
+                    result.onFailure {
+                        Snackbar.make(binding.root, R.string.error_occurred, Snackbar.LENGTH_SHORT).show()
+                    }
+                }
+                true
+            }
+
             R.id.action_flush_recently_done -> {
                 viewModel.flushRecentlyDone()
                 prefsManager.flushRecentlyDoneAt = System.currentTimeMillis()

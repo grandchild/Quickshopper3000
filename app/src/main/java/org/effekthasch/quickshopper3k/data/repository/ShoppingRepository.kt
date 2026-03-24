@@ -473,4 +473,44 @@ class ShoppingRepository(private val database: AppDatabase) {
             Result.failure(e)
         }
     }
+
+    suspend fun activateAllPostponed(
+        historyDays: Int = DEFAULT_HISTORY_DAYS,
+        reactivateMinSeconds: Int = DEFAULT_REACTIVATE_MIN_SECONDS
+    ): Result<Unit> {
+        return try {
+            val now = System.currentTimeMillis()
+            val postponedStates = itemDao.getAllPostponedStates()
+            if (postponedStates.isEmpty()) return Result.success(Unit)
+
+            val reactivateThresholdMs = reactivateMinSeconds * 1000L
+            val cutoff = historyCutoff(now, historyDays)
+
+            val toRecord = postponedStates.mapNotNull { stateEntity ->
+                val lastChangedAt = stateEntity.stateChangedAt
+                if (lastChangedAt == null || now - lastChangedAt > reactivateThresholdMs) {
+                    ItemAddHistoryEntity(itemId = stateEntity.itemId, addedAt = now)
+                } else {
+                    null
+                }
+            }
+
+            val postponedItemIds = postponedStates.map { it.itemId }
+            itemDao.deleteAllPostponedStates()
+
+            if (toRecord.isNotEmpty()) {
+                itemDao.insertItemAddHistories(toRecord)
+                itemDao.deleteItemAddHistoryOlderThan(cutoff)
+            }
+
+            val uuids = itemDao.getUuidsByIds(postponedItemIds)
+            if (uuids.isNotEmpty()) {
+                emitter.emit(SyncIntent.BulkSetState(uuids, ItemState.ACTIVATED.toString()))
+            }
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

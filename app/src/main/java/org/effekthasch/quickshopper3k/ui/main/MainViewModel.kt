@@ -464,4 +464,15 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
             onResult(result)
         }
     }
+
+    fun activateAllPostponed(onResult: (Result<Unit>) -> Unit) {
+        viewModelScope.launch {
+            val result = repository.activateAllPostponed(
+                historyDays(),
+                reactivateMinSeconds()
+            )
+            onResult(result)
+        }
+    }
+}
 }
