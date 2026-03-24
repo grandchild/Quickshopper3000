@@ -22,51 +22,53 @@
     <LinearLayout
         android:id="@+id/searchContainer"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="16dp"
+        android:layout_height="48dp"
         android:background="?android:attr/colorBackground"
+        android:clipChildren="true"
+        android:clipToPadding="true"
+        android:orientation="horizontal"
+        android:padding="8dp"
+        android:paddingEnd="-4dp"
         android:visibility="gone"
         app:layout_constraintBottom_toTopOf="@+id/searchActiveBar"
-        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-    >
+        app:layout_constraintStart_toStartOf="parent"
+        tools:visibility="visible">
 
         <ImageView
             android:layout_width="24dp"
             android:layout_height="24dp"
-            android:src="@android:drawable/ic_menu_search"
-            android:alpha="0.5"
             android:layout_gravity="center_vertical"
+            android:alpha="0.5"
             android:contentDescription="@string/search"
-        />
+            android:src="@android:drawable/ic_menu_search" />
 
         <EditText
             android:id="@+id/searchInput"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
+            android:layout_height="match_parent"
             android:layout_marginStart="12dp"
             android:layout_marginEnd="8dp"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
             android:hint="@string/search"
             android:imeOptions="actionSearch"
             android:importantForAutofill="no"
             android:inputType="text"
-            android:background="@android:color/transparent"
-            android:textSize="16sp"
-        />
+            android:textSize="16sp" />
 
         <ImageButton
             android:id="@+id/addItemButton"
-            android:layout_width="48dp"
-            android:layout_height="24dp"
-            android:src="@drawable/ic_add_item"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/add_item"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
             android:layout_gravity="center_vertical"
+            android:background="@drawable/bg_add_item_button"
+            android:contentDescription="@string/add_item"
+            android:padding="0dp"
             android:scaleType="center"
+            android:src="@drawable/ic_add_item"
             android:visibility="gone"
-        />
+            tools:visibility="visible" />
 
     </LinearLayout>
 
@@ -74,15 +76,15 @@
         android:id="@+id/searchActiveBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginBottom="56dp"
+        android:background="?android:attr/colorBackground"
+        android:gravity="center_vertical"
         android:orientation="horizontal"
         android:padding="6dp"
-        android:layout_marginBottom="56dp"
-        android:gravity="center_vertical"
-        android:background="?android:attr/colorBackground"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
     >
 
         <ImageButton
@@ -101,9 +103,9 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:text=""
             android:textColor="?android:attr/textColorPrimary"
             android:textSize="16sp"
-            android:text=""
         />
     </LinearLayout>
 
