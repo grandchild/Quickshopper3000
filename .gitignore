@@ -17,3 +17,5 @@ local.properties
 /db/
 /todo.txt
 /tests/items.txt
+/.stfolder/
+/.stignore
