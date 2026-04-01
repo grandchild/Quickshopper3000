@@ -202,7 +202,7 @@ Store in default shared preferences:
 - `is_left_handed`: Boolean (default false)
 - `text_scale`: String ("compact"|"normal"|"large", default "normal")
 - `show_done_items_mode`: String ("none"|"recent"|"all", default "none")
-- `recent_done_minutes`: Int (default 60, threshold for "recent" mode)
+- `recently_done_minutes`: Int (default 60, threshold for "recent" mode)
 - `flush_recently_done_at`: Long? (timestamp for "flush recently done" action; supersedes minutes threshold while fresher)
 - `history_days`: Int (default 183)
 - `mistake_done_seconds`: Int (default 20)

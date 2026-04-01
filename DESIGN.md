@@ -38,9 +38,9 @@
         - deactivate <-L- postponed -R-> activate
         - deactivated items ("Done") visibility is controlled by tristate toggle in BottomAppBar:
             - none: hide all done items
-            - recent: show done items from last X minutes (X = configurable, default 60)
+            - current: show done items from last X minutes (X = configurable, default 60)
             - all: show all done items
-        - tristate button cycles through modes on tap (none → recent → all → none)
+        - tristate button cycles through modes on tap (none → current → all → none)
         - "flush recently done" menu action: sets a cutoff timestamp to now, hiding all
           previously done items in "recent" mode. The flush timestamp supersedes the
           X minutes threshold only while it's more recent; after X minutes pass, it

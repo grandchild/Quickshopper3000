@@ -5,24 +5,24 @@ import android.content.SharedPreferences
 import org.effekthasch.quickshopper3k.util.Ulid
 
 enum class DoneVisibilityMode {
-    RECENT,
+    CURRENT,
     ALL;
 
     fun next(): DoneVisibilityMode = when (this) {
-        RECENT -> ALL
-        ALL -> RECENT
+        CURRENT -> ALL
+        ALL -> CURRENT
     }
 
     fun label(): String = when (this) {
-        RECENT -> "recent"
+        CURRENT -> "current"
         ALL -> "all"
     }
 
     companion object {
         fun fromString(value: String): DoneVisibilityMode = when (value.lowercase()) {
-            "recent" -> RECENT
+            "current" -> CURRENT
             "all" -> ALL
-            else -> RECENT
+            else -> CURRENT
         }
     }
 }
@@ -77,17 +77,17 @@ class PreferencesManager(context: Context) {
 
     var doneVisibilityMode: DoneVisibilityMode
         get() {
-            val value = prefs.getString(KEY_DONE_VISIBILITY_MODE, "recent") ?: "recent"
+            val value = prefs.getString(KEY_DONE_VISIBILITY_MODE, "current") ?: "current"
             return DoneVisibilityMode.fromString(value)
         }
         set(value) {
             prefs.edit().putString(KEY_DONE_VISIBILITY_MODE, value.name.lowercase()).apply()
         }
 
-    var recentDoneMinutes: Int
-        get() = prefs.getInt(KEY_RECENT_DONE_MINUTES, 60)
+    var recentlyDoneMinutes: Int
+        get() = prefs.getInt(KEY_RECENTLY_DONE_MINUTES, 60)
         set(value) {
-            prefs.edit().putInt(KEY_RECENT_DONE_MINUTES, value).apply()
+            prefs.edit().putInt(KEY_RECENTLY_DONE_MINUTES, value).apply()
         }
 
     var historyDays: Int
@@ -164,7 +164,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_IS_LEFT_HANDED = "is_left_handed"
 
         private const val KEY_DONE_VISIBILITY_MODE = "done_visibility_mode"
-        private const val KEY_RECENT_DONE_MINUTES = "recent_done_minutes"
+        private const val KEY_RECENTLY_DONE_MINUTES = "recently_done_minutes"
         private const val KEY_FLUSH_RECENTLY_DONE_AT = "flush_recently_done_at"
         private const val KEY_HISTORY_DAYS = "history_days"
         private const val KEY_MISTAKE_DONE_SECONDS = "mistake_done_seconds"

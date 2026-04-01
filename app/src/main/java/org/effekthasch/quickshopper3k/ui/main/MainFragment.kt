@@ -215,7 +215,7 @@ class MainFragment :
         val initialStoreId = prefsManager.selectedShopStoreIds.firstOrNull() ?: 0L
         viewModel.setCurrentStore(initialStoreId)
         viewModel.setDoneVisibilityMode(prefsManager.doneVisibilityMode)
-        viewModel.setRecentDoneMinutes(prefsManager.recentDoneMinutes)
+        viewModel.setRecentlyDoneMinutes(prefsManager.recentlyDoneMinutes)
         viewModel.setHistoryDays(prefsManager.historyDays)
         viewModel.setMistakeDoneSeconds(prefsManager.mistakeDoneSeconds)
         viewModel.setReactivateMinSeconds(prefsManager.reactivateMinSeconds)
@@ -372,11 +372,11 @@ class MainFragment :
 
     fun cycleDoneVisibilityMode() {
         viewModel.cycleDoneVisibilityMode()
-        prefsManager.doneVisibilityMode = viewModel.doneVisibilityMode.value ?: DoneVisibilityMode.RECENT
+        prefsManager.doneVisibilityMode = viewModel.doneVisibilityMode.value ?: DoneVisibilityMode.CURRENT
     }
 
     fun getDoneVisibilityMode(): DoneVisibilityMode {
-        return viewModel.doneVisibilityMode.value ?: DoneVisibilityMode.RECENT
+        return viewModel.doneVisibilityMode.value ?: DoneVisibilityMode.CURRENT
     }
 
     private fun updateStoreMenuTitle() {

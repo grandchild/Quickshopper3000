@@ -36,8 +36,8 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
 
     private val _currentStoreId = MutableStateFlow<Long?>(null)
     private val _searchQuery = MutableLiveData("")
-    private val _doneVisibilityMode = MutableLiveData(DoneVisibilityMode.RECENT)
-    private val _recentDoneMinutes = MutableLiveData(60)
+    private val _doneVisibilityMode = MutableLiveData(DoneVisibilityMode.CURRENT)
+    private val _recentlyDoneMinutes = MutableLiveData(60)
     private val _historyDays = MutableLiveData(183)
     private val _mistakeDoneSeconds = MutableLiveData(20)
     private val _reactivateMinSeconds = MutableLiveData(3600)
@@ -55,8 +55,8 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         fun update() {
             val allItems = items.value ?: emptyList()
             val query = _searchQuery.value ?: ""
-            val visibilityMode = _doneVisibilityMode.value ?: DoneVisibilityMode.RECENT
-            val recentMinutes = _recentDoneMinutes.value ?: 60
+            val visibilityMode = _doneVisibilityMode.value ?: DoneVisibilityMode.CURRENT
+            val recentMinutes = _recentlyDoneMinutes.value ?: 60
             val flushAt = _flushRecentlyDoneAt.value
             val isDragging = _isDragging.value ?: false
             val currentStore = _currentStoreId.value
@@ -102,7 +102,7 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
                 isDragging -> true
                 storeItem.item.state != ItemState.DEACTIVATED -> true
                 mode == DoneVisibilityMode.ALL -> true
-                mode == DoneVisibilityMode.RECENT -> {
+                mode == DoneVisibilityMode.CURRENT -> {
                     val changedAt = storeItem.item.stateChangedAt
                     changedAt != null && changedAt >= recentThreshold
                 }
@@ -113,7 +113,7 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
             fun matchesAvailability(storeItem: StoreItem): Boolean =
                 currentStore == null || currentStore == 0L || storeItem.isAvailable
 
-            val effectiveMode = if (query.isNotBlank() && visibilityMode == DoneVisibilityMode.RECENT)
+            val effectiveMode = if (query.isNotBlank() && visibilityMode == DoneVisibilityMode.CURRENT)
                 DoneVisibilityMode.ALL
             else
                 visibilityMode
@@ -130,7 +130,7 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         addSource(items) { update() }
         addSource(_searchQuery) { update() }
         addSource(_doneVisibilityMode) { update() }
-        addSource(_recentDoneMinutes) { update() }
+        addSource(_recentlyDoneMinutes) { update() }
         addSource(_flushRecentlyDoneAt) { update() }
         addSource(_isDragging) { update() }
         addSource(_currentStoreId.asLiveData()) { update() }
@@ -197,7 +197,7 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
     }
 
     fun cycleDoneVisibilityMode() {
-        val current = _doneVisibilityMode.value ?: DoneVisibilityMode.RECENT
+        val current = _doneVisibilityMode.value ?: DoneVisibilityMode.CURRENT
         _doneVisibilityMode.value = current.next()
     }
 
@@ -205,8 +205,8 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         _doneVisibilityMode.value = mode
     }
 
-    fun setRecentDoneMinutes(minutes: Int) {
-        _recentDoneMinutes.value = minutes
+    fun setRecentlyDoneMinutes(minutes: Int) {
+        _recentlyDoneMinutes.value = minutes
     }
 
     fun setHistoryDays(days: Int) {
