@@ -89,8 +89,8 @@ class MainFragment :
         }
     }
 
-    override fun persistOrder(items: List<StoreItem>) {
-        viewModel.updateItemOrderFromList(items) { result ->
+    override fun persistOrder(items: List<StoreItem>, movedItemId: Long?) {
+        viewModel.updateItemOrderFromList(items, movedItemId) { result ->
             result.onFailure {
                 Snackbar.make(binding.root, R.string.error_occurred, Snackbar.LENGTH_SHORT).show()
             }

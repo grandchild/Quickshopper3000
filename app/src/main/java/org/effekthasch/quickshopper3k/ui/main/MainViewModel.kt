@@ -331,15 +331,119 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         return storeId != null && storeId != 0L
     }
 
-    fun updateItemOrderFromList(finalList: List<StoreItem>, onResult: (Result<Unit>) -> Unit) {
+    fun updateItemOrderFromList(finalList: List<StoreItem>, movedItemId: Long? = null, onResult: (Result<Unit>) -> Unit) {
         val storeId = _currentStoreId.value ?: 0L
+        val allItems = items.value ?: emptyList()
+
+        if (finalList.isEmpty() || allItems.isEmpty()) {
+            onResult(Result.success(Unit))
+            return
+        }
+
+        val visibleIds = finalList.map { it.item.id }
+
+        val resolvedMovedItemId = movedItemId ?: findMovedItemId(previous = allItems, currentVisible = visibleIds)
+        if (resolvedMovedItemId == null) {
+            onResult(Result.success(Unit))
+            return
+        }
+
+        val newVisibleIndex = visibleIds.indexOf(resolvedMovedItemId)
+        if (newVisibleIndex < 0) {
+            onResult(Result.success(Unit))
+            return
+        }
+
+        val upperVisibleId = if (newVisibleIndex > 0) visibleIds[newVisibleIndex - 1] else null
+        val lowerVisibleId = if (newVisibleIndex + 1 < visibleIds.size) visibleIds[newVisibleIndex + 1] else null
+
+        val sorted = allItems.sortedWith(
+            compareBy<StoreItem> { it.sortOrder ?: Int.MAX_VALUE }.thenBy { it.item.id }
+        )
+        val sortOrderById = allItems.associate { it.item.id to (it.sortOrder ?: 0) }
+
+        val insertAfterIdx = upperVisibleId?.let { uid -> sorted.indexOfFirst { it.item.id == uid } }
+        val insertBeforeIdx = if (insertAfterIdx != null) {
+            ((insertAfterIdx + 1) until sorted.size).firstOrNull { sorted[it].item.id != resolvedMovedItemId }
+        } else {
+            lowerVisibleId?.let { lid -> sorted.indexOfFirst { it.item.id == lid } }
+                ?.let { idx -> (idx until sorted.size).firstOrNull { sorted[it].item.id != resolvedMovedItemId } }
+        }
+
+        val upperOrder = insertAfterIdx?.let { sortOrderById[sorted[it].item.id] }
+        val lowerOrder = insertBeforeIdx?.let { sortOrderById[sorted[it].item.id] }
+        val movedCurrent = sortOrderById[resolvedMovedItemId] ?: 0
+
+        val newOrder = computeGappedOrder(upperOrder, lowerOrder, movedCurrent)
 
         viewModelScope.launch {
-            val orders = finalList.mapIndexed { index, storeItem ->
-                storeItem.item.id to index
+            val result = if (newOrder == null) {
+                val renumbered = renumberAllWithPowerOfTwoGap(sorted, resolvedMovedItemId, upperVisibleId)
+                repository.updateStoreItemOrders(storeId, renumbered)
+            } else {
+                repository.updateStoreItemOrders(storeId, listOf(resolvedMovedItemId to newOrder))
             }
-            val result = repository.updateStoreItemOrders(storeId, orders)
             onResult(result)
+        }
+    }
+
+    private fun findMovedItemId(previous: List<StoreItem>, currentVisible: List<Long>): Long? {
+        if (currentVisible.size < 2) return null
+
+        val prevVisible = previous.map { it.item.id }.filter { currentVisible.contains(it) }
+        if (prevVisible.size != currentVisible.size) return null
+
+        val moved = currentVisible.filter { id ->
+            val oldIndex = prevVisible.indexOf(id)
+            val newIndex = currentVisible.indexOf(id)
+            oldIndex != -1 && oldIndex != newIndex
+        }
+
+        return if (moved.size == 1) moved.first() else moved.lastOrNull()
+    }
+
+    private fun computeGappedOrder(upper: Int?, lower: Int?, current: Int): Int? {
+        val baseGap = 1 shl 10
+
+        return when {
+            upper == null && lower == null -> current
+
+            upper == null -> {
+                val candidate = lower!! - baseGap
+                if (candidate < Int.MIN_VALUE / 2) null else candidate
+            }
+
+            lower == null -> {
+                val candidate = upper + baseGap
+                if (candidate > Int.MAX_VALUE / 2) null else candidate
+            }
+
+            else -> {
+                val gap = lower - upper
+                if (gap <= 1) null else upper + gap / 2
+            }
+        }
+    }
+
+    private fun renumberAllWithPowerOfTwoGap(
+        sorted: List<StoreItem>,
+        movedItemId: Long,
+        upperId: Long?
+    ): List<Pair<Long, Int>> {
+        val sortedIds = sorted.map { it.item.id }.toMutableList()
+
+        sortedIds.remove(movedItemId)
+        val insertAt = if (upperId == null) {
+            0
+        } else {
+            val idx = sortedIds.indexOf(upperId)
+            if (idx == -1) 0 else idx + 1
+        }
+        sortedIds.add(insertAt, movedItemId)
+
+        val gap = 1 shl 10
+        return sortedIds.mapIndexed { index, id ->
+            id to ((index + 1) * gap)
         }
     }
 
@@ -474,5 +578,4 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
             onResult(result)
         }
     }
-}
 }

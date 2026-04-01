@@ -193,7 +193,7 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
         }
     }
 
-    override fun persistOrder(items: List<StoreItem>) {
+    override fun persistOrder(items: List<StoreItem>, movedItemId: Long?) {
         val storeId = prefsManager.currentStoreId ?: return
         val orders = items.mapIndexed { index, storeItem ->
             storeItem.item.id to index
@@ -394,7 +394,7 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
                 }
 
                 val finalList = adapter.getItems()
-                persistOrder(finalList)
+                persistOrder(finalList, null)
                 isDragging = false
             }
 

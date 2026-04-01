@@ -28,7 +28,7 @@ abstract class BaseListFragment<T> : Fragment() {
     abstract fun provideAdapter(): BaseDragAdapter<T, out RecyclerView.ViewHolder>
     abstract fun onSwipeLeft(item: T)
     abstract fun onSwipeRight(item: T)
-    abstract fun persistOrder(items: List<T>)
+    abstract fun persistOrder(items: List<T>, movedItemId: Long? = null)
     abstract fun onBottomBarTextChanged(text: String)
     abstract fun bottomBarImeAction(): Int
     abstract fun getSwipeRightTargetState(item: T): String
@@ -291,6 +291,8 @@ abstract class BaseListFragment<T> : Fragment() {
     }
 
     inner class DragCallback : ItemTouchHelper.Callback() {
+        private var draggedItemId: Long = RecyclerView.NO_ID
+
         override fun getMovementFlags(
             recyclerView: RecyclerView,
             viewHolder: RecyclerView.ViewHolder
@@ -319,13 +321,15 @@ abstract class BaseListFragment<T> : Fragment() {
             super.onSelectedChanged(viewHolder, actionState)
             if (actionState == ItemTouchHelper.ACTION_STATE_DRAG) {
                 isDragging = true
+                draggedItemId = viewHolder?.itemId ?: RecyclerView.NO_ID
             }
         }
 
         override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
             super.clearView(recyclerView, viewHolder)
             val finalList = adapter.getItems()
-            persistOrder(finalList)
+            persistOrder(finalList, draggedItemId)
+            draggedItemId = RecyclerView.NO_ID
             isDragging = false
         }
 
