@@ -1,0 +1,10 @@
+[Unit]
+Description=QS3k intent log compaction
+After=network.target
+
+[Service]
+Type=oneshot
+User=http
+Group=http
+WorkingDirectory=/mnt/vol01/websites/effekthasch.org/qs3k/
+ExecStart=/mnt/vol01/websites/effekthasch.org/qs3k/qs3k-api --compact

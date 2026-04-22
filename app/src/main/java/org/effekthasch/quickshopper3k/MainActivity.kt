@@ -14,6 +14,7 @@ import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.bottomappbar.BottomAppBar
 import org.effekthasch.quickshopper3k.data.local.AppDatabase
 import org.effekthasch.quickshopper3k.data.sync.SyncManager
+import org.effekthasch.quickshopper3k.data.sync.SyncStats
 import org.effekthasch.quickshopper3k.databinding.ActivityMainBinding
 import org.effekthasch.quickshopper3k.ui.FabController
 import org.effekthasch.quickshopper3k.ui.MainPagerAdapter
@@ -32,6 +33,8 @@ class MainActivity : AppCompatActivity() {
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        SyncStats.init(applicationContext)
 
 
 

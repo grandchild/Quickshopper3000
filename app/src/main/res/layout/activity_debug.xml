@@ -47,6 +47,32 @@
             android:visibility="gone"
         />
 
+        <TextView
+            android:id="@+id/debugSyncStatsText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:fontFamily="monospace"
+            android:textSize="11sp"
+            android:textColor="?android:attr/textColorSecondary"
+            android:visibility="gone"
+        />
+
+        <Button
+            android:id="@+id/debugResetStatsButton"
+            style="?attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="start"
+            android:layout_marginStart="8dp"
+            android:text="Reset Stats"
+            android:textSize="12sp"
+            android:visibility="gone"
+        />
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/debugRecyclerView"
             android:layout_width="match_parent"

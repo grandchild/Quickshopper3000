@@ -108,6 +108,16 @@ class SyncManager(
                 return
             }
 
+            val httpResult = result.getOrElse { return }
+            val intentCount = envelopes.length()
+            if (intentCount > 0) {
+                val bytesPerIntent = httpResult.bytesSent / intentCount
+                for (i in 0 until intentCount) {
+                    val type = envelopes.getJSONObject(i).optString("type", "unknown")
+                    SyncStats.recordPush(type, bytesPerIntent)
+                }
+            }
+
             syncDao.markSynced(batch.map { it.id })
             syncDao.purgeSynced()
             totalPushed += batch.size
@@ -118,10 +128,14 @@ class SyncManager(
     private suspend fun pull(client: SyncHttpClient, listId: String, deviceId: String) {
         val sinceUlid = syncDao.getSyncState(KEY_LAST_SYNCED_ULID)
 
-        client.getIntents(listId, sinceUlid).onSuccess { array ->
+        client.getIntents(listId, sinceUlid).onSuccess { httpResult ->
+            SyncStats.recordPollOverhead(httpResult.bytesReceived)
+            val array = JSONArray(httpResult.body)
             var latestUlid = sinceUlid
             for (i in 0 until array.length()) {
                 val json = array.getJSONObject(i)
+                val type = json.optString("type", "unknown")
+                SyncStats.recordPull(type, json.toString().length.toLong())
                 val envelope = SyncIntentSerializer.fromJson(json) ?: continue
                 val serverUlid = envelope.serverUlid ?: continue
                 if (envelope.deviceId == deviceId) {
@@ -140,13 +154,14 @@ class SyncManager(
     }
 
     private suspend fun initialSync(client: SyncHttpClient, listId: String, deviceId: String) {
-        val remoteIntents = client.getIntents(listId, null).getOrElse { e ->
+        val remoteResult = client.getIntents(listId, null).getOrElse { e ->
             Log.w(TAG, "Initial sync pull failed", e)
             return
         }
 
-        if (remoteIntents.length() > 0) {
-            applyRemoteIntents(remoteIntents, deviceId)
+        val remoteArray = JSONArray(remoteResult.body)
+        if (remoteArray.length() > 0) {
+            applyRemoteIntents(remoteArray, deviceId)
         } else {
             enqueueFullState()
             push(client, listId, deviceId)
@@ -158,6 +173,8 @@ class SyncManager(
         var latestUlid: String? = null
         for (i in 0 until array.length()) {
             val json = array.getJSONObject(i)
+            val type = json.optString("type", "unknown")
+            SyncStats.recordPull(type, json.toString().length.toLong())
             val envelope = SyncIntentSerializer.fromJson(json) ?: continue
             val serverUlid = envelope.serverUlid ?: continue
             if (envelope.deviceId != deviceId) {

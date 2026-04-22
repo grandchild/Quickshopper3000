@@ -1,6 +1,5 @@
 package org.effekthasch.quickshopper3k.data.sync
 
-import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
@@ -10,33 +9,34 @@ import java.net.URL
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 
+data class HttpResult(val body: String, val bytesSent: Long, val bytesReceived: Long)
+
 class SyncHttpClient(private val baseUrl: String) {
 
-    fun postIntents(listUuid: String, intents: JSONArray): Result<JSONObject> {
+    fun postIntents(listUuid: String, intents: JSONArray): Result<HttpResult> {
         return request("POST", "/list/$listUuid/intents", intents.toString())
-            .mapCatching { JSONObject(it) }
     }
 
-    fun getIntents(listUuid: String, sinceUlid: String?): Result<JSONArray> {
+    fun getIntents(listUuid: String, sinceUlid: String?): Result<HttpResult> {
         val path = if (sinceUlid != null) {
             "/list/$listUuid/intents?since=$sinceUlid"
         } else {
             "/list/$listUuid/intents"
         }
-        return request("GET", path, null).mapCatching { JSONArray(it) }
+        return request("GET", path, null)
     }
 
     fun getSnapshot(listUuid: String): Result<JSONObject> {
         return request("GET", "/list/$listUuid/snapshot", null)
-            .mapCatching { JSONObject(it) }
+            .mapCatching { JSONObject(it.body) }
     }
 
     fun getDebug(listUuid: String): Result<JSONObject> {
         return request("GET", "/list/$listUuid/debug", null)
-            .mapCatching { JSONObject(it) }
+            .mapCatching { JSONObject(it.body) }
     }
 
-    private fun request(method: String, path: String, body: String?): Result<String> {
+    private fun request(method: String, path: String, body: String?): Result<HttpResult> {
         return try {
             val url = URL(baseUrl.trimEnd('/') + path)
             val conn = url.openConnection() as HttpURLConnection
@@ -46,11 +46,14 @@ class SyncHttpClient(private val baseUrl: String) {
             conn.setRequestProperty("Accept", "application/json")
             conn.setRequestProperty("Accept-Encoding", "gzip")
 
+            var bytesSent = 0L
+
             if (body != null) {
                 val raw = body.toByteArray(Charsets.UTF_8)
                 val compressed = ByteArrayOutputStream(raw.size / 2).also { baos ->
                     GZIPOutputStream(baos).use { it.write(raw) }
                 }.toByteArray()
+                bytesSent = compressed.size.toLong()
                 conn.doOutput = true
                 conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conn.setRequestProperty("Content-Encoding", "gzip")
@@ -59,13 +62,15 @@ class SyncHttpClient(private val baseUrl: String) {
 
             val code = conn.responseCode
             if (code in 200..299) {
-                val stream = if (conn.contentEncoding?.equals("gzip", ignoreCase = true) == true) {
-                    GZIPInputStream(conn.inputStream)
+                val isGzip = conn.contentEncoding?.equals("gzip", ignoreCase = true) == true
+                val rawBytes = conn.inputStream.use { it.readBytes() }
+                val bytesReceived = rawBytes.size.toLong()
+                val text = if (isGzip) {
+                    GZIPInputStream(rawBytes.inputStream()).bufferedReader(Charsets.UTF_8).use { it.readText() }
                 } else {
-                    conn.inputStream
+                    String(rawBytes, Charsets.UTF_8)
                 }
-                val text = stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-                Result.success(text)
+                Result.success(HttpResult(text, bytesSent, bytesReceived))
             } else {
                 val error = conn.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
                 Result.failure(HttpException(code, error))

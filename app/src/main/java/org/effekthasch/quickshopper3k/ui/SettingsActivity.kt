@@ -141,7 +141,8 @@ class SettingsActivity : AppCompatActivity() {
         val serverResult = withContext(Dispatchers.IO) {
             runCatching {
                 val client = SyncHttpClient(baseUrl)
-                client.getIntents(listId, null).getOrThrow()
+                val httpResult = client.getIntents(listId, null).getOrThrow()
+                org.json.JSONArray(httpResult.body)
             }
         }
 

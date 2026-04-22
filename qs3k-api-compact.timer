@@ -1,0 +1,10 @@
+[Unit]
+Description=Run QS3k compaction periodically
+
+[Timer]
+OnCalendar=*-*-* 00/6:00:00
+RandomizedDelaySec=300
+Persistent=true
+
+[Install]
+WantedBy=timers.target
