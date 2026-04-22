@@ -948,6 +948,23 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     init_db(&conn)?;
     migrate_db(&conn)?;
 
+    if std::env::args().any(|a| a == "--compact") {
+        let mut stmt = conn.prepare(
+            "SELECT DISTINCT list_id FROM intent UNION SELECT DISTINCT list_id FROM snapshot",
+        )?;
+        let list_ids: Vec<String> = stmt
+            .query_map([], |row| row.get(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        for list_id in &list_ids {
+            match compact_list_unconditional(&conn, list_id) {
+                Ok(()) => println!("compacted list {list_id}"),
+                Err(e) => eprintln!("error compacting list {list_id}: {}", e.message),
+            }
+        }
+        println!("compaction done, {} lists processed", list_ids.len());
+        return Ok(());
+    }
+
     let state = AppState {
         db: Arc::new(Mutex::new(conn)),
     };
