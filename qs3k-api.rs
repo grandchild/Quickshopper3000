@@ -64,8 +64,8 @@ const MAX_STORE_NAME_LEN: usize = 1000;
 const MAX_AMOUNT: i64 = 1_000_000;
 
 const COMPACTION_BACKLOG_THRESHOLD: usize = 10;
-const RETENTION_TAIL_DAYS: i64 = 7;
-const STALE_DEVICE_DAYS: i64 = 60;
+const RETENTION_TAIL_HOURS: i64 = 7 * 24;
+const STALE_DEVICE_HOURS: i64 = 60 * 24;
 const COMPACTION_CHECK_INTERVAL_HOURS: i64 = 12;
 
 fn db_error(e: rusqlite::Error) -> ErrorInfo {
@@ -461,14 +461,10 @@ fn mark_compaction_check(conn: &Connection, list_id: &str) -> ApiResult<()> {
     Ok(())
 }
 
-fn maybe_compact_list(conn: &Connection, list_id: &str) -> ApiResult<()> {
-    if !should_run_compaction_check(conn, list_id)? {
-        return Ok(());
-    }
-
+fn compact_list(conn: &Connection, list_id: &str) -> ApiResult<()> {
     let now = Timestamp::now();
     let stale_cutoff = now
-        .checked_sub(jiff::Span::new().days(STALE_DEVICE_DAYS))
+        .checked_sub(jiff::Span::new().hours(STALE_DEVICE_HOURS))
         .unwrap_or(now);
     let stale_cutoff_s = stale_cutoff.strftime("%Y-%m-%dT%H:%M:%S.%fZ").to_string();
 
@@ -492,10 +488,10 @@ fn maybe_compact_list(conn: &Connection, list_id: &str) -> ApiResult<()> {
         )
         .map_err(db_error)?;
 
-    let Some(latest_ulid) = latest_ulid else {
+    if latest_ulid.is_none() {
         mark_compaction_check(conn, list_id)?;
         return Ok(());
-    };
+    }
 
     let backlog_count: usize = if let Some(ref hwm) = min_non_stale_hwm {
         conn.query_row(
@@ -509,7 +505,7 @@ fn maybe_compact_list(conn: &Connection, list_id: &str) -> ApiResult<()> {
     };
 
     let retention_tail_cutoff = now
-        .checked_sub(jiff::Span::new().days(RETENTION_TAIL_DAYS))
+        .checked_sub(jiff::Span::new().hours(RETENTION_TAIL_HOURS))
         .unwrap_or(now)
         .strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         .to_string();
@@ -542,11 +538,6 @@ fn maybe_compact_list(conn: &Connection, list_id: &str) -> ApiResult<()> {
         mark_compaction_check(conn, list_id)?;
         return Ok(());
     };
-
-    if compact_to_ulid >= latest_ulid {
-        mark_compaction_check(conn, list_id)?;
-        return Ok(());
-    }
 
     let mut stmt = conn
         .prepare(
@@ -608,6 +599,17 @@ fn maybe_compact_list(conn: &Connection, list_id: &str) -> ApiResult<()> {
     conn.execute_batch("COMMIT").map_err(db_error)?;
 
     Ok(())
+}
+
+fn compact_list_unconditional(conn: &Connection, list_id: &str) -> ApiResult<()> {
+    compact_list(conn, list_id)
+}
+
+fn maybe_compact_list(conn: &Connection, list_id: &str) -> ApiResult<()> {
+    if !should_run_compaction_check(conn, list_id)? {
+        return Ok(());
+    }
+    compact_list(conn, list_id)
 }
 
 fn get_snapshot(
