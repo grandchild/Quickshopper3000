@@ -58,6 +58,7 @@
             android:fontFamily="monospace"
             android:textSize="11sp"
             android:textColor="?android:attr/textColorSecondary"
+            android:textIsSelectable="true"
             android:visibility="gone"
         />
 
