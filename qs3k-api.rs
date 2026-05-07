@@ -662,27 +662,14 @@ fn route_request(
                 .query_row(params![list_uuid], |row| row.get(0))
                 .map_err(db_error)?;
 
-            let snapshot = get_snapshot(&conn, list_uuid)?.1;
-            let snapshot_intent_count = if let Some(ref snap) = snapshot {
-                if let Some(arr) = snap.as_array() {
-                    arr.len()
-                } else if let Some(arr) = snap.get("intents").and_then(|v| v.as_array()) {
-                    arr.len()
-                } else {
-                    0
-                }
-            } else {
-                0
-            };
-
             let incoming_count = intents.len();
-            let total_intents = snapshot_intent_count + current_count + incoming_count;
+            let total_intents = current_count + incoming_count;
 
             if total_intents > MAX_TOTAL_INTENTS {
                 return Err(ErrorInfo {
                     status: 413,
                     message: format!(
-                        "Snapshot+intent limit exceeded (max {} intents)",
+                        "Intent limit exceeded (max {} intents)",
                         MAX_TOTAL_INTENTS
                     ),
                 });
