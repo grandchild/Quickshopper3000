@@ -161,6 +161,7 @@ fn generate_ulid() -> String {
 }
 
 fn init_db(conn: &Connection) -> SqliteResult<()> {
+    conn.pragma_update(None, "journal_mode", "WAL")?;
     create_tables(conn)?;
     println!("Database initialized");
     Ok(())
