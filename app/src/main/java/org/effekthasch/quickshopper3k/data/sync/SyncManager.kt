@@ -118,6 +118,13 @@ class SyncManager(
                 }
             }
 
+            val responseBody = JSONObject(httpResult.body)
+            val serverUlids = responseBody.optJSONArray("server_ulids")
+            if (serverUlids != null && serverUlids.length() > 0) {
+                val lastUlid = serverUlids.getString(serverUlids.length() - 1)
+                syncDao.setSyncState(SyncStateEntity(KEY_LAST_SYNCED_ULID, lastUlid))
+            }
+
             syncDao.markSynced(batch.map { it.id })
             syncDao.purgeSynced()
             totalPushed += batch.size
@@ -135,13 +142,13 @@ class SyncManager(
             for (i in 0 until array.length()) {
                 val json = array.getJSONObject(i)
                 val type = json.optString("type", "unknown")
-                SyncStats.recordPull(type, json.toString().length.toLong())
                 val envelope = SyncIntentSerializer.fromJson(json) ?: continue
                 val serverUlid = envelope.serverUlid ?: continue
                 if (envelope.deviceId == deviceId) {
                     latestUlid = serverUlid
                     continue
                 }
+                SyncStats.recordPull(type, json.toString().length.toLong())
                 applier.apply(envelope.intent, serverUlid)
                 latestUlid = serverUlid
             }
@@ -174,10 +181,10 @@ class SyncManager(
         for (i in 0 until array.length()) {
             val json = array.getJSONObject(i)
             val type = json.optString("type", "unknown")
-            SyncStats.recordPull(type, json.toString().length.toLong())
             val envelope = SyncIntentSerializer.fromJson(json) ?: continue
             val serverUlid = envelope.serverUlid ?: continue
             if (envelope.deviceId != deviceId) {
+                SyncStats.recordPull(type, json.toString().length.toLong())
                 applier.apply(envelope.intent, serverUlid)
             }
             latestUlid = serverUlid
