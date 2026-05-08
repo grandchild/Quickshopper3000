@@ -118,10 +118,14 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
             else
                 visibilityMode
 
-            val result = displayItems.filter { storeItem ->
-                matchesSearch(storeItem) && matchesVisibility(storeItem, effectiveMode) && matchesAvailability(
-                    storeItem
-                )
+            val result = if (query.isNotBlank()) {
+                displayItems.filter { storeItem ->
+                    matchesSearch(storeItem) && matchesVisibility(storeItem, effectiveMode)
+                }
+            } else {
+                displayItems.filter { storeItem ->
+                    matchesSearch(storeItem) && matchesVisibility(storeItem, effectiveMode) && matchesAvailability(storeItem)
+                }
             }
 
             value = result

@@ -2,6 +2,7 @@ package org.effekthasch.quickshopper3k.ui.main
 
 import android.view.LayoutInflater
 import android.view.View
+import android.graphics.Typeface
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import org.effekthasch.quickshopper3k.R
@@ -204,6 +205,12 @@ class MainItemsAdapter(
                     binding.itemStateIcon.setImageResource(R.drawable.ic_state_na)
                     binding.itemNameText.alpha = 0.7f
                 }
+            }
+
+            if (!storeItem.isAvailable) {
+                binding.itemNameText.setTypeface(binding.itemNameText.typeface, Typeface.ITALIC)
+            } else {
+                binding.itemNameText.setTypeface(null, Typeface.NORMAL)
             }
 
             if (isSelected(position)) {
