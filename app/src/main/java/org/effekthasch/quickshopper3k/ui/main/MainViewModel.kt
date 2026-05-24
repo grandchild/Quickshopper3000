@@ -149,22 +149,23 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         return normalized.replace(COMBINING_MARKS_REGEX, "")
     }
 
-    private fun normalizeImportName(text: String): String {
-        return normalizeForSearch(text).trim()
+    private fun stripImportLine(text: String): String {
+        var stripped = text.trim()
+        while (stripped.startsWith("-") || stripped.startsWith("*")) {
+            stripped = stripped.drop(1).trimStart()
+        }
+        return stripped
+    }
+
+    internal fun normalizeImportName(text: String): String {
+        return normalizeForSearch(stripImportLine(text)).trim()
     }
 
     private fun parseImportLines(text: String): List<String> {
         val seen = mutableSetOf<String>()
         val result = mutableListOf<String>()
         text.lines()
-            .map { it.trim() }
-            .map { line ->
-                var stripped = line
-                while (stripped.startsWith("-") || stripped.startsWith("*")) {
-                    stripped = stripped.drop(1).trimStart()
-                }
-                stripped
-            }
+            .map(::stripImportLine)
             .filter { it.isNotBlank() }
             .forEach { line ->
                 val normalized = normalizeImportName(line)
@@ -451,35 +452,42 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         }
     }
 
-    fun getImportPreview(text: String, onResult: (Result<ImportPreview>) -> Unit) {
+    fun getAllItemNames(onResult: (Result<List<String>>) -> Unit) {
         viewModelScope.launch {
-            val lines = parseImportLines(text)
-            if (lines.isEmpty()) {
-                onResult(Result.failure(Exception("No items to import")))
-                return@launch
-            }
+            onResult(repository.getAllItemNames())
+        }
+    }
 
-            val existingResult = repository.getAllItemNames()
-            existingResult.onSuccess { existingNames ->
-                val normalizedExisting = existingNames.map { normalizeImportName(it).lowercase() }.toSet()
-                val existingItems = mutableListOf<String>()
-                val newItems = mutableListOf<String>()
-                val orderedItems = mutableListOf<ImportPreviewItem>()
-                lines.forEach { line ->
-                    val normalized = normalizeImportName(line).lowercase()
-                    if (normalizedExisting.contains(normalized)) {
-                        existingItems.add(line)
-                        orderedItems.add(ImportPreviewItem(line, true))
-                    } else {
-                        newItems.add(line)
-                        orderedItems.add(ImportPreviewItem(line, false))
-                    }
-                }
-                onResult(Result.success(ImportPreview(orderedItems, existingItems, newItems)))
-            }.onFailure { error ->
-                onResult(Result.failure(error))
+    internal fun normalizeImportNames(names: Collection<String>): Set<String> {
+        return names.asSequence()
+            .map(::normalizeImportName)
+            .filter { it.isNotBlank() }
+            .map { it.lowercase() }
+            .toSet()
+    }
+
+    fun buildImportPreview(text: String, normalizedExisting: Set<String>): Result<ImportPreview> {
+        val lines = parseImportLines(text)
+        if (lines.isEmpty()) {
+            return Result.failure(IllegalArgumentException("No items to import"))
+        }
+
+        val existingItems = mutableListOf<String>()
+        val newItems = mutableListOf<String>()
+        val orderedItems = mutableListOf<ImportPreviewItem>()
+
+        lines.forEach { line ->
+            val normalized = normalizeImportName(line).lowercase()
+            if (normalizedExisting.contains(normalized)) {
+                existingItems.add(line)
+                orderedItems.add(ImportPreviewItem(line, true))
+            } else {
+                newItems.add(line)
+                orderedItems.add(ImportPreviewItem(line, false))
             }
         }
+
+        return Result.success(ImportPreview(orderedItems, existingItems, newItems))
     }
 
     fun importItems(names: List<String>, onResult: (Result<Int>) -> Unit) {

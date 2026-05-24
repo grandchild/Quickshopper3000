@@ -3,7 +3,6 @@ package org.effekthasch.quickshopper3k.ui.main
 import android.content.Intent
 import android.os.Bundle
 import android.text.Spannable
-import android.text.SpannableStringBuilder
 import android.text.style.ForegroundColorSpan
 import android.graphics.Rect
 import android.view.LayoutInflater
@@ -28,7 +27,6 @@ import org.effekthasch.quickshopper3k.data.repository.ShoppingRepository
 import org.effekthasch.quickshopper3k.databinding.DialogAddItemBinding
 import org.effekthasch.quickshopper3k.databinding.DialogItemContextMenuBinding
 import org.effekthasch.quickshopper3k.databinding.DialogImportItemsBinding
-import org.effekthasch.quickshopper3k.databinding.DialogImportItemsPreviewBinding
 import org.effekthasch.quickshopper3k.databinding.FragmentMainBinding
 import org.effekthasch.quickshopper3k.domain.model.ItemState
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
@@ -50,6 +48,7 @@ class MainFragment :
     private var lastKeyboardVisible = false
     private var keyboardListener: ViewTreeObserver.OnGlobalLayoutListener? = null
 
+    private class ImportPreviewColorSpan(color: Int) : ForegroundColorSpan(color)
 
     override fun provideAdapter() = MainItemsAdapter(
         onItemClick = {
@@ -622,96 +621,149 @@ class MainFragment :
 
     private fun showImportItemsDialog() {
         val dialogBinding = DialogImportItemsBinding.inflate(layoutInflater)
-
-        AlertDialog.Builder(requireContext())
+        val dialog = AlertDialog.Builder(requireContext())
             .setTitle(R.string.import_items_title)
             .setView(dialogBinding.root)
-            .setPositiveButton(R.string.ok) { _, _ ->
-                val text = dialogBinding.importTextInput.text?.toString() ?: ""
-                if (text.isNotBlank()) {
-                    val progressDialog = AlertDialog.Builder(requireContext())
-                        .setMessage(R.string.importing_items)
-                        .setCancelable(false)
-                        .create()
-                    progressDialog.show()
-
-                    viewModel.getImportPreview(text) { result ->
-                        progressDialog.dismiss()
-                        result.onSuccess { preview ->
-                            if (preview.existingItems.isEmpty()) {
-                                importNewItems(preview.newItems)
-                                return@onSuccess
-                            }
-                            showImportItemsPreviewDialog(preview)
-                        }.onFailure {
-                            Snackbar.make(
-                                binding.root,
-                                R.string.error_occurred,
-                                Snackbar.LENGTH_SHORT
-                            ).show()
-                        }
-                    }
-                }
-            }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
-
-        dialogBinding.importTextInput.requestFocus()
-    }
-
-    private fun showImportItemsPreviewDialog(preview: MainViewModel.ImportPreview) {
-        val dialogBinding = DialogImportItemsPreviewBinding.inflate(layoutInflater)
-        dialogBinding.importItemsText.text = buildImportPreviewText(preview)
-
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.import_preview_title)
-            .setView(dialogBinding.root)
-            .setPositiveButton(R.string.import_preview_import_only) { _, _ ->
-                importNewItems(preview.newItems)
-            }
-            .setNegativeButton(R.string.import_preview_import_activate_existing) { _, _ ->
-                importAndActivateItems(preview.orderedItems.map { it.name }, preview.newItems)
-            }
-            .setNeutralButton(R.string.cancel, null)
-            .show()
-    }
-
-    private fun buildImportPreviewText(preview: MainViewModel.ImportPreview): CharSequence {
+            .create()
         val existingColor = ContextCompat.getColor(requireContext(), R.color.import_preview_existing)
         val newColor = ContextCompat.getColor(requireContext(), R.color.import_preview_new)
-        val builder = SpannableStringBuilder()
+        var normalizedKnownItemNames: Set<String>? = null
+        var currentPreview: MainViewModel.ImportPreview? = null
 
-        preview.orderedItems.forEachIndexed { index, item ->
-            val start = builder.length
-            builder.append(item.name)
-            val end = builder.length
-            val color = if (item.isExisting) existingColor else newColor
-            builder.setSpan(ForegroundColorSpan(color), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-            if (index < preview.orderedItems.lastIndex) {
-                builder.append("\n")
+        fun updateActionButtons(preview: MainViewModel.ImportPreview?, ready: Boolean) {
+            dialogBinding.importNewButton.isEnabled = ready && !preview?.newItems.isNullOrEmpty()
+            dialogBinding.importActivateKnownButton.isEnabled = ready && !preview?.orderedItems.isNullOrEmpty()
+            dialogBinding.activateKnownButton.isEnabled = ready && !preview?.existingItems.isNullOrEmpty()
+        }
+
+        fun refreshPreview() {
+            val editable = dialogBinding.importTextInput.text ?: return
+            applyImportPreviewSpans(editable, normalizedKnownItemNames, existingColor, newColor)
+            currentPreview = normalizedKnownItemNames?.let { names ->
+                viewModel.buildImportPreview(editable.toString(), names).getOrNull()
+            }
+            updateActionButtons(currentPreview, normalizedKnownItemNames != null)
+        }
+
+        dialogBinding.importTextInput.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+
+            override fun afterTextChanged(s: android.text.Editable?) {
+                refreshPreview()
+            }
+        })
+
+        dialogBinding.importNewButton.setOnClickListener {
+            val preview = currentPreview ?: return@setOnClickListener
+            dialog.dismiss()
+            importNewItems(preview.newItems)
+        }
+        dialogBinding.importActivateKnownButton.setOnClickListener {
+            val preview = currentPreview ?: return@setOnClickListener
+            dialog.dismiss()
+            importNewItemsAndActivateKnownItems(preview.existingItems, preview.newItems)
+        }
+        dialogBinding.activateKnownButton.setOnClickListener {
+            val preview = currentPreview ?: return@setOnClickListener
+            dialog.dismiss()
+            activateImportedItems(preview.existingItems)
+        }
+        dialogBinding.importCancelButton.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        updateActionButtons(preview = null, ready = false)
+        dialog.show()
+        dialogBinding.importTextInput.requestFocus()
+
+        viewModel.getAllItemNames { result ->
+            if (!dialog.isShowing) {
+                return@getAllItemNames
+            }
+            result.onSuccess { names ->
+                normalizedKnownItemNames = viewModel.normalizeImportNames(names)
+                refreshPreview()
+            }.onFailure {
+                dialog.dismiss()
+                Snackbar.make(
+                    binding.root,
+                    R.string.error_occurred,
+                    Snackbar.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    private fun applyImportPreviewSpans(
+        editable: android.text.Editable,
+        normalizedKnownItemNames: Set<String>?,
+        existingColor: Int,
+        newColor: Int
+    ) {
+        editable.getSpans(0, editable.length, ImportPreviewColorSpan::class.java)
+            .forEach(editable::removeSpan)
+
+        val text = editable.toString()
+        var lineStart = 0
+        text.split('\n').forEach { line ->
+            val bounds = findImportItemBounds(line)
+            if (bounds != null) {
+                val normalized = viewModel.normalizeImportName(
+                    line.substring(bounds.first, bounds.second)
+                ).lowercase()
+                if (normalized.isNotBlank()) {
+                    val color = if (normalizedKnownItemNames?.contains(normalized) == true) existingColor else newColor
+                    editable.setSpan(
+                        ImportPreviewColorSpan(color),
+                        lineStart + bounds.first,
+                        lineStart + bounds.second,
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                }
+            }
+            lineStart += line.length + 1
+        }
+    }
+
+    private fun findImportItemBounds(line: String): Pair<Int, Int>? {
+        var start = 0
+        while (start < line.length && line[start].isWhitespace()) {
+            start++
+        }
+        while (start < line.length && (line[start] == '-' || line[start] == '*')) {
+            start++
+            while (start < line.length && line[start].isWhitespace()) {
+                start++
             }
         }
 
-        return builder
+        var end = line.length
+        while (end > start && line[end - 1].isWhitespace()) {
+            end--
+        }
+
+        return if (start < end) start to end else null
     }
 
-    private fun importAndActivateItems(allNames: List<String>, newNames: List<String>) {
-        if (allNames.isEmpty()) {
-            return
-        }
+    private fun importNewItemsAndActivateKnownItems(knownNames: List<String>, newNames: List<String>) {
         if (newNames.isEmpty()) {
-            activateImportedItems(allNames)
+            activateImportedItems(knownNames)
             return
         }
 
         importNewItems(newNames) { result ->
             result.onSuccess {
-                activateImportedItems(allNames)
+                activateImportedItems(knownNames)
             }
         }
     }
 
     private fun activateImportedItems(names: List<String>) {
+        if (names.isEmpty()) {
+            return
+        }
         viewModel.activateItemsByNames(names) { result ->
             result.onFailure {
                 Snackbar.make(binding.root, R.string.error_occurred, Snackbar.LENGTH_SHORT).show()

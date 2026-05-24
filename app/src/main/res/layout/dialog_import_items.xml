@@ -1,33 +1,81 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<?xml version="1.0" encoding="utf-8" ?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="16dp">
+    android:fillViewport="true"
+>
 
-    <TextView
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/import_items_message"
-        android:textSize="14sp"
-        android:layout_marginBottom="16dp" />
+        android:orientation="vertical"
+        android:padding="16dp"
+    >
 
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/importTextInputLayout"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="@string/import_items_hint">
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/importTextInput"
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="textMultiLine|textCapSentences"
-            android:minLines="5"
-            android:maxLines="15"
-            android:gravity="start|top"
-            android:scrollbars="vertical" />
+            android:layout_marginBottom="16dp"
+            android:text="@string/import_items_message"
+            android:textSize="14sp"
+        />
 
-    </com.google.android.material.textfield.TextInputLayout>
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/importTextInputLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/import_items_hint"
+        >
 
-</LinearLayout>
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/importTextInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="start|top"
+                android:inputType="textMultiLine|textCapSentences"
+                android:maxLines="15"
+                android:minLines="5"
+                android:scrollbars="vertical"
+            />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/importNewButton"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/import_items_action_import_new"
+        />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/importActivateKnownButton"
+            style="@style/Widget.MaterialComponents.Button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/import_items_action_import_activate_known"
+        />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/activateKnownButton"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/import_items_action_activate_known_only"
+        />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/importCancelButton"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/cancel"
+        />
+
+    </LinearLayout>
+</ScrollView>
