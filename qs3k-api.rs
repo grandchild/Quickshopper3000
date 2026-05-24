@@ -3,7 +3,7 @@ use jiff::Timestamp;
 use rusqlite::{params, Connection, Result as SqliteResult};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     error::Error,
     io::Read,
     sync::{Arc, Mutex, MutexGuard},
@@ -54,6 +54,74 @@ struct DebugResponse {
 struct DeviceInfo {
     device_id: String,
     last_synced_ulid: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+struct MaterializedSnapshot {
+    #[serde(default)]
+    items: Vec<SnapshotItem>,
+    #[serde(default)]
+    stores: Vec<SnapshotStore>,
+    #[serde(default)]
+    availability: Vec<SnapshotAvailability>,
+    #[serde(default)]
+    item_order: Vec<SnapshotItemOrder>,
+    #[serde(default)]
+    deleted_items: Vec<String>,
+    #[serde(default)]
+    deleted_stores: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct SnapshotItem {
+    item_uuid: String,
+    name: String,
+    state: String,
+    amount: i64,
+    created_at: u64,
+}
+
+#[derive(Serialize, Deserialize)]
+struct SnapshotStore {
+    store_uuid: String,
+    name: String,
+    specialty: bool,
+}
+
+#[derive(Serialize, Deserialize)]
+struct SnapshotAvailability {
+    store_uuid: String,
+    item_uuid: String,
+    available: bool,
+}
+
+#[derive(Serialize, Deserialize)]
+struct SnapshotItemOrder {
+    store_uuid: String,
+    item_uuid: String,
+    sort_order: i64,
+}
+
+struct MaterializedItem {
+    name: String,
+    state: String,
+    amount: i64,
+    created_at: u64,
+}
+
+struct MaterializedStore {
+    name: String,
+    specialty: bool,
+}
+
+#[derive(Default)]
+struct MaterializedState {
+    items: HashMap<String, MaterializedItem>,
+    stores: HashMap<String, MaterializedStore>,
+    availability: HashMap<(String, String), bool>,
+    item_order: HashMap<(String, String), i64>,
+    deleted_items: HashSet<String>,
+    deleted_stores: HashSet<String>,
 }
 
 const DB_VERSION: i32 = 1;
@@ -462,7 +530,465 @@ fn mark_compaction_check(conn: &Connection, list_id: &str) -> ApiResult<()> {
     Ok(())
 }
 
-fn compact_list(conn: &Connection, list_id: &str) -> ApiResult<()> {
+fn payload_str<'a>(
+    payload: &'a serde_json::Value,
+    key: &str,
+    intent_type: &str,
+) -> ApiResult<&'a str> {
+    payload
+        .get(key)
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| ErrorInfo {
+            status: 500,
+            message: format!("Cannot compact malformed {intent_type}: missing string '{key}'"),
+        })
+}
+
+fn payload_bool(payload: &serde_json::Value, key: &str, intent_type: &str) -> ApiResult<bool> {
+    payload
+        .get(key)
+        .and_then(|v| v.as_bool())
+        .ok_or_else(|| ErrorInfo {
+            status: 500,
+            message: format!("Cannot compact malformed {intent_type}: missing bool '{key}'"),
+        })
+}
+
+fn payload_i64(payload: &serde_json::Value, key: &str, intent_type: &str) -> ApiResult<i64> {
+    payload
+        .get(key)
+        .and_then(|v| v.as_i64())
+        .ok_or_else(|| ErrorInfo {
+            status: 500,
+            message: format!("Cannot compact malformed {intent_type}: missing integer '{key}'"),
+        })
+}
+
+fn payload_array<'a>(
+    payload: &'a serde_json::Value,
+    key: &str,
+    intent_type: &str,
+) -> ApiResult<&'a Vec<serde_json::Value>> {
+    payload
+        .get(key)
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| ErrorInfo {
+            status: 500,
+            message: format!("Cannot compact malformed {intent_type}: missing array '{key}'"),
+        })
+}
+
+fn ulid_digit(c: char) -> Option<u8> {
+    match c {
+        '0'..='9' => Some((c as u8) - b'0'),
+        'A'..='Z' => Some(10 + (c as u8) - b'A'),
+        'a'..='z' => Some(10 + (c as u8) - b'a'),
+        _ => None,
+    }
+}
+
+fn decode_ulid_timestamp_ms(ulid: &str) -> Option<u64> {
+    let mut value = 0u64;
+    let mut chars = ulid.chars();
+    for _ in 0..10 {
+        let c = chars.next()?;
+        let digit = ulid_digit(c)?;
+        if digit >= 32 {
+            return None;
+        }
+        value = value.checked_mul(32)?;
+        value = value.checked_add(u64::from(digit))?;
+    }
+    Some(value)
+}
+
+impl MaterializedState {
+    fn delete_item(&mut self, item_uuid: &str) {
+        self.deleted_items.insert(item_uuid.to_owned());
+        self.items.remove(item_uuid);
+        self.availability
+            .retain(|(_, entry_item_uuid), _| entry_item_uuid != item_uuid);
+        self.item_order
+            .retain(|(_, entry_item_uuid), _| entry_item_uuid != item_uuid);
+    }
+
+    fn delete_store(&mut self, store_uuid: &str) {
+        self.deleted_stores.insert(store_uuid.to_owned());
+        self.stores.remove(store_uuid);
+        self.availability
+            .retain(|(entry_store_uuid, _), _| entry_store_uuid != store_uuid);
+        self.item_order
+            .retain(|(entry_store_uuid, _), _| entry_store_uuid != store_uuid);
+    }
+
+    fn apply_item_state(&mut self, item_uuid: &str, state: &str, previous_state: &str) {
+        let Some(item) = self.items.get_mut(item_uuid) else {
+            return;
+        };
+
+        let current_state = item.state.clone();
+        let is_concurrent = !previous_state.is_empty() && previous_state != current_state;
+        if is_concurrent {
+            let incoming_priority = match state {
+                "DEACTIVATED" => Some(0),
+                "ACTIVATED" => Some(1),
+                "POSTPONED" => Some(2),
+                _ => None,
+            };
+            let current_priority = match current_state.as_str() {
+                "DEACTIVATED" => Some(0),
+                "ACTIVATED" => Some(1),
+                "POSTPONED" => Some(2),
+                _ => None,
+            };
+            let (Some(incoming_priority), Some(current_priority)) =
+                (incoming_priority, current_priority)
+            else {
+                return;
+            };
+            if incoming_priority >= current_priority {
+                return;
+            }
+        }
+
+        item.state = state.to_owned();
+    }
+
+    fn apply_intent(&mut self, intent: &Intent) -> ApiResult<()> {
+        match intent.intent_type.as_str() {
+            "add_item" => {
+                let item_uuid = payload_str(&intent.payload, "item_uuid", "add_item")?;
+                let name = payload_str(&intent.payload, "name", "add_item")?;
+                if self.deleted_items.contains(item_uuid) || self.items.contains_key(item_uuid) {
+                    return Ok(());
+                }
+                let created_at = decode_ulid_timestamp_ms(item_uuid).unwrap_or(0);
+                self.items.insert(
+                    item_uuid.to_owned(),
+                    MaterializedItem {
+                        name: name.to_owned(),
+                        state: "ACTIVATED".to_owned(),
+                        amount: 1,
+                        created_at,
+                    },
+                );
+            }
+            "delete_item" => {
+                let item_uuid = payload_str(&intent.payload, "item_uuid", "delete_item")?;
+                self.delete_item(item_uuid);
+            }
+            "rename_item" => {
+                let item_uuid = payload_str(&intent.payload, "item_uuid", "rename_item")?;
+                let name = payload_str(&intent.payload, "name", "rename_item")?;
+                if let Some(item) = self.items.get_mut(item_uuid) {
+                    item.name = name.to_owned();
+                }
+            }
+            "set_item_state" => {
+                let item_uuid = payload_str(&intent.payload, "item_uuid", "set_item_state")?;
+                let state = payload_str(&intent.payload, "state", "set_item_state")?;
+                let previous_state =
+                    payload_str(&intent.payload, "previous_state", "set_item_state")?;
+                self.apply_item_state(item_uuid, state, previous_state);
+            }
+            "set_item_amount" => {
+                let item_uuid = payload_str(&intent.payload, "item_uuid", "set_item_amount")?;
+                let amount = payload_i64(&intent.payload, "amount", "set_item_amount")?;
+                if let Some(item) = self.items.get_mut(item_uuid) {
+                    item.amount = amount;
+                }
+            }
+            "add_store" => {
+                let store_uuid = payload_str(&intent.payload, "store_uuid", "add_store")?;
+                let name = payload_str(&intent.payload, "name", "add_store")?;
+                let specialty = payload_bool(&intent.payload, "specialty", "add_store")?;
+                if self.deleted_stores.contains(store_uuid) || self.stores.contains_key(store_uuid)
+                {
+                    return Ok(());
+                }
+                self.stores.insert(
+                    store_uuid.to_owned(),
+                    MaterializedStore {
+                        name: name.to_owned(),
+                        specialty,
+                    },
+                );
+            }
+            "delete_store" => {
+                let store_uuid = payload_str(&intent.payload, "store_uuid", "delete_store")?;
+                self.delete_store(store_uuid);
+            }
+            "update_store" => {
+                let store_uuid = payload_str(&intent.payload, "store_uuid", "update_store")?;
+                let name = payload_str(&intent.payload, "name", "update_store")?;
+                let specialty = payload_bool(&intent.payload, "specialty", "update_store")?;
+                if let Some(store) = self.stores.get_mut(store_uuid) {
+                    store.name = name.to_owned();
+                    store.specialty = specialty;
+                }
+            }
+            "set_availability" => {
+                let store_uuid = payload_str(&intent.payload, "store_uuid", "set_availability")?;
+                let item_uuid = payload_str(&intent.payload, "item_uuid", "set_availability")?;
+                let available = payload_bool(&intent.payload, "available", "set_availability")?;
+                if self.stores.contains_key(store_uuid) && self.items.contains_key(item_uuid) {
+                    self.availability
+                        .insert((store_uuid.to_owned(), item_uuid.to_owned()), available);
+                }
+            }
+            "set_item_order" => {
+                let store_uuid = payload_str(&intent.payload, "store_uuid", "set_item_order")?;
+                let item_uuid = payload_str(&intent.payload, "item_uuid", "set_item_order")?;
+                let sort_order = payload_i64(&intent.payload, "sort_order", "set_item_order")?;
+                if self.stores.contains_key(store_uuid) && self.items.contains_key(item_uuid) {
+                    self.item_order
+                        .insert((store_uuid.to_owned(), item_uuid.to_owned()), sort_order);
+                }
+            }
+            "bulk_add_items" => {
+                for item in payload_array(&intent.payload, "items", "bulk_add_items")? {
+                    let item_uuid = payload_str(item, "item_uuid", "bulk_add_items")?;
+                    let name = payload_str(item, "name", "bulk_add_items")?;
+                    if self.deleted_items.contains(item_uuid) || self.items.contains_key(item_uuid)
+                    {
+                        continue;
+                    }
+                    let created_at = decode_ulid_timestamp_ms(item_uuid).unwrap_or(0);
+                    self.items.insert(
+                        item_uuid.to_owned(),
+                        MaterializedItem {
+                            name: name.to_owned(),
+                            state: "ACTIVATED".to_owned(),
+                            amount: 1,
+                            created_at,
+                        },
+                    );
+                }
+            }
+            "bulk_set_state" => {
+                let state = payload_str(&intent.payload, "state", "bulk_set_state")?;
+                for item_uuid_value in
+                    payload_array(&intent.payload, "item_uuids", "bulk_set_state")?
+                {
+                    let Some(item_uuid) = item_uuid_value.as_str() else {
+                        return Err(ErrorInfo {
+                            status: 500,
+                            message: "Cannot compact malformed bulk_set_state: item_uuids must contain strings".into(),
+                        });
+                    };
+                    self.apply_item_state(item_uuid, state, "");
+                }
+            }
+            other => {
+                return Err(ErrorInfo {
+                    status: 500,
+                    message: format!("Cannot compact unknown intent type '{other}'"),
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    fn apply_snapshot_value(&mut self, snapshot: &serde_json::Value) -> ApiResult<()> {
+        match snapshot {
+            serde_json::Value::Null => Ok(()),
+            serde_json::Value::Array(intents) => {
+                for value in intents {
+                    let intent: Intent =
+                        serde_json::from_value(value.clone()).map_err(json_error)?;
+                    self.apply_intent(&intent)?;
+                }
+                Ok(())
+            }
+            serde_json::Value::Object(_) => {
+                let snapshot: MaterializedSnapshot =
+                    serde_json::from_value(snapshot.clone()).map_err(json_error)?;
+
+                for item in snapshot.items {
+                    self.items.insert(
+                        item.item_uuid,
+                        MaterializedItem {
+                            name: item.name,
+                            state: item.state,
+                            amount: item.amount,
+                            created_at: item.created_at,
+                        },
+                    );
+                }
+
+                for store in snapshot.stores {
+                    self.stores.insert(
+                        store.store_uuid,
+                        MaterializedStore {
+                            name: store.name,
+                            specialty: store.specialty,
+                        },
+                    );
+                }
+
+                for entry in snapshot.availability {
+                    if self.stores.contains_key(&entry.store_uuid)
+                        && self.items.contains_key(&entry.item_uuid)
+                    {
+                        self.availability
+                            .insert((entry.store_uuid, entry.item_uuid), entry.available);
+                    }
+                }
+
+                for entry in snapshot.item_order {
+                    if self.stores.contains_key(&entry.store_uuid)
+                        && self.items.contains_key(&entry.item_uuid)
+                    {
+                        self.item_order
+                            .insert((entry.store_uuid, entry.item_uuid), entry.sort_order);
+                    }
+                }
+
+                for item_uuid in snapshot.deleted_items {
+                    self.delete_item(&item_uuid);
+                }
+
+                for store_uuid in snapshot.deleted_stores {
+                    self.delete_store(&store_uuid);
+                }
+
+                Ok(())
+            }
+            _ => Err(ErrorInfo {
+                status: 500,
+                message: "Cannot compact unsupported snapshot JSON shape".into(),
+            }),
+        }
+    }
+
+    fn to_snapshot_value(&self) -> ApiResult<serde_json::Value> {
+        let mut items: Vec<SnapshotItem> = self
+            .items
+            .iter()
+            .map(|(item_uuid, item)| SnapshotItem {
+                item_uuid: item_uuid.clone(),
+                name: item.name.clone(),
+                state: item.state.clone(),
+                amount: item.amount,
+                created_at: item.created_at,
+            })
+            .collect();
+        items.sort_by(|a, b| {
+            a.created_at
+                .cmp(&b.created_at)
+                .then_with(|| a.item_uuid.cmp(&b.item_uuid))
+        });
+
+        let mut stores: Vec<SnapshotStore> = self
+            .stores
+            .iter()
+            .map(|(store_uuid, store)| SnapshotStore {
+                store_uuid: store_uuid.clone(),
+                name: store.name.clone(),
+                specialty: store.specialty,
+            })
+            .collect();
+        stores.sort_by(|a, b| a.store_uuid.cmp(&b.store_uuid));
+
+        let mut availability: Vec<SnapshotAvailability> = self
+            .availability
+            .iter()
+            .filter(|(_, available)| !**available)
+            .map(
+                |((store_uuid, item_uuid), available)| SnapshotAvailability {
+                    store_uuid: store_uuid.clone(),
+                    item_uuid: item_uuid.clone(),
+                    available: *available,
+                },
+            )
+            .collect();
+        availability.sort_by(|a, b| {
+            a.store_uuid
+                .cmp(&b.store_uuid)
+                .then_with(|| a.item_uuid.cmp(&b.item_uuid))
+        });
+
+        let mut item_order: Vec<SnapshotItemOrder> = self
+            .item_order
+            .iter()
+            .map(|((store_uuid, item_uuid), sort_order)| SnapshotItemOrder {
+                store_uuid: store_uuid.clone(),
+                item_uuid: item_uuid.clone(),
+                sort_order: *sort_order,
+            })
+            .collect();
+        item_order.sort_by(|a, b| {
+            a.store_uuid
+                .cmp(&b.store_uuid)
+                .then_with(|| a.sort_order.cmp(&b.sort_order))
+                .then_with(|| a.item_uuid.cmp(&b.item_uuid))
+        });
+
+        let mut deleted_items: Vec<String> = self.deleted_items.iter().cloned().collect();
+        deleted_items.sort();
+
+        let mut deleted_stores: Vec<String> = self.deleted_stores.iter().cloned().collect();
+        deleted_stores.sort();
+
+        serde_json::to_value(MaterializedSnapshot {
+            items,
+            stores,
+            availability,
+            item_order,
+            deleted_items,
+            deleted_stores,
+        })
+        .map_err(json_error)
+    }
+}
+
+fn load_compactable_intents(
+    conn: &Connection,
+    list_id: &str,
+    compact_to_ulid: &str,
+) -> ApiResult<Vec<Intent>> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT server_ulid, device_ulid, device_id, list_id, intent_type, payload_json
+             FROM intent
+             WHERE list_id = ?1 AND server_ulid <= ?2
+             ORDER BY server_ulid ASC",
+        )
+        .map_err(db_error)?;
+
+    let rows = stmt
+        .query_map(params![list_id, compact_to_ulid], |row| {
+            let payload_str: String = row.get(5)?;
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+                payload_str,
+            ))
+        })
+        .map_err(db_error)?;
+
+    let mut intents = Vec::new();
+    for row in rows {
+        let (server_ulid, device_ulid, device_id, row_list_id, intent_type, payload_str) =
+            row.map_err(db_error)?;
+        intents.push(Intent {
+            device_ulid,
+            server_ulid: Some(server_ulid),
+            device_id,
+            list_id: row_list_id,
+            intent_type,
+            payload: serde_json::from_str(&payload_str).map_err(json_error)?,
+        });
+    }
+
+    Ok(intents)
+}
+
+fn compact_list_internal(conn: &Connection, list_id: &str, force: bool) -> ApiResult<()> {
     let now = Timestamp::now();
     let stale_cutoff = now
         .checked_sub(jiff::Span::new().hours(STALE_DEVICE_HOURS))
@@ -489,90 +1015,81 @@ fn compact_list(conn: &Connection, list_id: &str) -> ApiResult<()> {
         )
         .map_err(db_error)?;
 
-    if latest_ulid.is_none() {
+    let Some(latest_ulid) = latest_ulid else {
         mark_compaction_check(conn, list_id)?;
         return Ok(());
-    }
+    };
 
-    let backlog_count: usize = if let Some(ref hwm) = min_non_stale_hwm {
-        conn.query_row(
-            "SELECT COUNT(*) FROM intent WHERE list_id = ?1 AND server_ulid > ?2",
-            params![list_id, hwm],
-            |row| row.get(0),
-        )
-        .map_err(db_error)?
+    let compact_to_ulid = if force {
+        latest_ulid
     } else {
-        0
+        let backlog_count: usize = if let Some(ref hwm) = min_non_stale_hwm {
+            conn.query_row(
+                "SELECT COUNT(*) FROM intent WHERE list_id = ?1 AND server_ulid > ?2",
+                params![list_id, hwm],
+                |row| row.get(0),
+            )
+            .map_err(db_error)?
+        } else {
+            0
+        };
+
+        let retention_tail_cutoff = now
+            .checked_sub(jiff::Span::new().hours(RETENTION_TAIL_HOURS))
+            .unwrap_or(now)
+            .strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+            .to_string();
+
+        let newest_before_tail: Option<String> = conn
+            .query_row(
+                "SELECT MAX(server_ulid)
+                 FROM intent
+                 WHERE list_id = ?1 AND created_at < ?2",
+                params![list_id, retention_tail_cutoff],
+                |row| row.get(0),
+            )
+            .map_err(db_error)?;
+
+        let should_compact =
+            backlog_count >= COMPACTION_BACKLOG_THRESHOLD || newest_before_tail.is_some();
+        if !should_compact {
+            mark_compaction_check(conn, list_id)?;
+            return Ok(());
+        }
+
+        match (min_non_stale_hwm, newest_before_tail) {
+            (Some(a), Some(b)) => {
+                if a < b {
+                    a
+                } else {
+                    b
+                }
+            }
+            (Some(a), None) => a,
+            (None, Some(b)) => b,
+            (None, None) => {
+                mark_compaction_check(conn, list_id)?;
+                return Ok(());
+            }
+        }
     };
 
-    let retention_tail_cutoff = now
-        .checked_sub(jiff::Span::new().hours(RETENTION_TAIL_HOURS))
-        .unwrap_or(now)
-        .strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-        .to_string();
-
-    let newest_before_tail: Option<String> = conn
-        .query_row(
-            "SELECT MAX(server_ulid)
-             FROM intent
-             WHERE list_id = ?1 AND created_at < ?2",
-            params![list_id, retention_tail_cutoff],
-            |row| row.get(0),
-        )
-        .map_err(db_error)?;
-
-    let should_compact =
-        backlog_count >= COMPACTION_BACKLOG_THRESHOLD || newest_before_tail.is_some();
-    if !should_compact {
+    let intents = load_compactable_intents(conn, list_id, &compact_to_ulid)?;
+    if intents.is_empty() {
         mark_compaction_check(conn, list_id)?;
         return Ok(());
     }
 
-    let compact_to_ulid = match (min_non_stale_hwm, newest_before_tail) {
-        (Some(a), Some(b)) => Some(if a < b { a } else { b }),
-        (Some(a), None) => Some(a),
-        (None, Some(b)) => Some(b),
-        (None, None) => None,
-    };
-
-    let Some(compact_to_ulid) = compact_to_ulid else {
-        mark_compaction_check(conn, list_id)?;
-        return Ok(());
-    };
-
-    let mut stmt = conn
-        .prepare(
-            "SELECT server_ulid, device_ulid, device_id, list_id, intent_type, payload_json
-             FROM intent
-             WHERE list_id = ?1 AND server_ulid <= ?2
-             ORDER BY server_ulid ASC",
-        )
-        .map_err(db_error)?;
-
-    let rows = stmt
-        .query_map(params![list_id, compact_to_ulid], |row| {
-            Ok(serde_json::json!({
-                "server_ulid": row.get::<_, String>(0)?,
-                "device_ulid": row.get::<_, String>(1)?,
-                "device_id": row.get::<_, String>(2)?,
-                "list_id": row.get::<_, String>(3)?,
-                "type": row.get::<_, String>(4)?,
-                "payload": serde_json::from_str::<serde_json::Value>(&row.get::<_, String>(5)?).unwrap_or(serde_json::Value::Null)
-            }))
-        })
-        .map_err(db_error)?;
-
-    let mut intents_json = Vec::new();
-    for row in rows {
-        intents_json.push(row.map_err(db_error)?);
+    let (_, existing_snapshot) = get_snapshot(conn, list_id)?;
+    let mut state = MaterializedState::default();
+    if let Some(snapshot) = existing_snapshot {
+        state.apply_snapshot_value(&snapshot)?;
+    }
+    for intent in &intents {
+        state.apply_intent(intent)?;
     }
 
-    if intents_json.is_empty() {
-        mark_compaction_check(conn, list_id)?;
-        return Ok(());
-    }
-
-    let snapshot_json = serde_json::to_string(&intents_json).map_err(json_error)?;
+    let snapshot_json = serde_json::to_string(&state.to_snapshot_value()?).map_err(json_error)?;
     let now_s = get_current_timestamp();
 
     conn.execute_batch("BEGIN").map_err(db_error)?;
@@ -602,8 +1119,12 @@ fn compact_list(conn: &Connection, list_id: &str) -> ApiResult<()> {
     Ok(())
 }
 
+fn compact_list(conn: &Connection, list_id: &str) -> ApiResult<()> {
+    compact_list_internal(conn, list_id, false)
+}
+
 fn compact_list_unconditional(conn: &Connection, list_id: &str) -> ApiResult<()> {
-    compact_list(conn, list_id)
+    compact_list_internal(conn, list_id, true)
 }
 
 fn maybe_compact_list(conn: &Connection, list_id: &str) -> ApiResult<()> {
@@ -668,10 +1189,7 @@ fn route_request(
             if total_intents > MAX_TOTAL_INTENTS {
                 return Err(ErrorInfo {
                     status: 413,
-                    message: format!(
-                        "Intent limit exceeded (max {} intents)",
-                        MAX_TOTAL_INTENTS
-                    ),
+                    message: format!("Intent limit exceeded (max {} intents)", MAX_TOTAL_INTENTS),
                 });
             }
 
@@ -926,6 +1444,280 @@ fn handle_request(mut request: Request, state: &AppState) {
 
     if let Err(e) = request.respond(response) {
         eprintln!("Error sending response: {e}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type TestResult = Result<(), Box<dyn Error + Send + Sync>>;
+
+    fn test_ulid(n: u64) -> String {
+        format!("{n:026}")
+    }
+
+    fn test_error(message: String) -> Box<dyn Error + Send + Sync> {
+        Box::new(std::io::Error::new(std::io::ErrorKind::Other, message))
+    }
+
+    fn insert_test_intent(
+        conn: &Connection,
+        list_id: &str,
+        server_ulid: &str,
+        intent_type: &str,
+        payload: serde_json::Value,
+    ) -> TestResult {
+        conn.execute(
+            "INSERT INTO intent (list_id, server_ulid, device_ulid, device_id, intent_type, payload_json, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                list_id,
+                server_ulid,
+                test_ulid(9_000_000),
+                "test-device",
+                intent_type,
+                serde_json::to_string(&payload)?,
+                get_current_timestamp(),
+            ],
+        )?;
+        Ok(())
+    }
+
+    fn read_snapshot_json(conn: &Connection, list_id: &str) -> TestResultValue {
+        let snapshot_json: String = conn.query_row(
+            "SELECT snapshot_json FROM snapshot WHERE list_id = ?1",
+            params![list_id],
+            |row| row.get(0),
+        )?;
+        Ok(serde_json::from_str(&snapshot_json)?)
+    }
+
+    type TestResultValue = Result<serde_json::Value, Box<dyn Error + Send + Sync>>;
+
+    #[test]
+    fn forced_compaction_keeps_only_current_item_order() -> TestResult {
+        let conn = Connection::open_in_memory()?;
+        create_tables(&conn)?;
+        migrate_db(&conn)?;
+
+        let list_id = "list-order";
+        let store_uuid = test_ulid(100);
+        let a = test_ulid(101);
+        let b = test_ulid(102);
+        let c = test_ulid(103);
+        let d = test_ulid(104);
+
+        insert_test_intent(
+            &conn,
+            list_id,
+            &test_ulid(1),
+            "add_store",
+            serde_json::json!({ "store_uuid": store_uuid, "name": "Main", "specialty": false }),
+        )?;
+        insert_test_intent(
+            &conn,
+            list_id,
+            &test_ulid(2),
+            "bulk_add_items",
+            serde_json::json!({
+                "items": [
+                    { "item_uuid": a, "name": "a" },
+                    { "item_uuid": b, "name": "b" },
+                    { "item_uuid": c, "name": "c" },
+                    { "item_uuid": d, "name": "d" }
+                ]
+            }),
+        )?;
+
+        for (idx, item_uuid) in [a.as_str(), b.as_str(), c.as_str(), d.as_str()]
+            .into_iter()
+            .enumerate()
+        {
+            insert_test_intent(
+                &conn,
+                list_id,
+                &test_ulid(10 + idx as u64),
+                "set_item_order",
+                serde_json::json!({
+                    "store_uuid": store_uuid,
+                    "item_uuid": item_uuid,
+                    "sort_order": idx as i64 + 1
+                }),
+            )?;
+        }
+
+        for (idx, item_uuid) in [b.as_str(), a.as_str(), d.as_str(), c.as_str()]
+            .into_iter()
+            .enumerate()
+        {
+            insert_test_intent(
+                &conn,
+                list_id,
+                &test_ulid(20 + idx as u64),
+                "set_item_order",
+                serde_json::json!({
+                    "store_uuid": store_uuid,
+                    "item_uuid": item_uuid,
+                    "sort_order": idx as i64 + 1
+                }),
+            )?;
+        }
+
+        compact_list_unconditional(&conn, list_id).map_err(|e| test_error(e.message))?;
+
+        let snapshot = read_snapshot_json(&conn, list_id)?;
+        let order = snapshot
+            .get("item_order")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| test_error("snapshot.item_order missing".into()))?;
+
+        let compacted_order: Vec<String> = order
+            .iter()
+            .filter_map(|entry| {
+                entry
+                    .get("item_uuid")
+                    .and_then(|v| v.as_str())
+                    .map(ToOwned::to_owned)
+            })
+            .collect();
+
+        assert_eq!(
+            compacted_order,
+            vec![b.clone(), a.clone(), d.clone(), c.clone()]
+        );
+        assert_eq!(order.len(), 4);
+
+        let remaining_intents: usize = conn.query_row(
+            "SELECT COUNT(*) FROM intent WHERE list_id = ?1",
+            params![list_id],
+            |row| row.get(0),
+        )?;
+        assert_eq!(remaining_intents, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn forced_compaction_merges_existing_snapshot() -> TestResult {
+        let conn = Connection::open_in_memory()?;
+        create_tables(&conn)?;
+        migrate_db(&conn)?;
+
+        let list_id = "list-merge";
+        let a = test_ulid(201);
+        let b = test_ulid(202);
+
+        insert_test_intent(
+            &conn,
+            list_id,
+            &test_ulid(1),
+            "add_item",
+            serde_json::json!({ "item_uuid": a, "name": "a" }),
+        )?;
+
+        compact_list_unconditional(&conn, list_id).map_err(|e| test_error(e.message))?;
+
+        insert_test_intent(
+            &conn,
+            list_id,
+            &test_ulid(2),
+            "rename_item",
+            serde_json::json!({ "item_uuid": a, "name": "a2" }),
+        )?;
+        insert_test_intent(
+            &conn,
+            list_id,
+            &test_ulid(3),
+            "add_item",
+            serde_json::json!({ "item_uuid": b, "name": "b" }),
+        )?;
+
+        compact_list_unconditional(&conn, list_id).map_err(|e| test_error(e.message))?;
+
+        let snapshot = read_snapshot_json(&conn, list_id)?;
+        let items = snapshot
+            .get("items")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| test_error("snapshot.items missing".into()))?;
+
+        assert!(snapshot.is_object());
+        assert_eq!(items.len(), 2);
+        assert!(items.iter().any(|item| {
+            item.get("item_uuid").and_then(|v| v.as_str()) == Some(a.as_str())
+                && item.get("name").and_then(|v| v.as_str()) == Some("a2")
+        }));
+        assert!(items.iter().any(|item| {
+            item.get("item_uuid").and_then(|v| v.as_str()) == Some(b.as_str())
+                && item.get("name").and_then(|v| v.as_str()) == Some("b")
+        }));
+        Ok(())
+    }
+
+    #[test]
+    fn forced_compaction_migrates_legacy_snapshot_log() -> TestResult {
+        let conn = Connection::open_in_memory()?;
+        create_tables(&conn)?;
+        migrate_db(&conn)?;
+
+        let list_id = "list-legacy";
+        let a = test_ulid(301);
+        let b = test_ulid(302);
+        let legacy_snapshot = serde_json::json!([
+            {
+                "device_ulid": test_ulid(7001),
+                "server_ulid": test_ulid(1),
+                "device_id": "legacy-device",
+                "list_id": list_id,
+                "type": "add_item",
+                "payload": { "item_uuid": a, "name": "a" }
+            }
+        ]);
+
+        conn.execute(
+            "INSERT INTO snapshot (list_id, snapshot_ulid, snapshot_json, created_at)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![
+                list_id,
+                test_ulid(1),
+                serde_json::to_string(&legacy_snapshot)?,
+                get_current_timestamp(),
+            ],
+        )?;
+
+        insert_test_intent(
+            &conn,
+            list_id,
+            &test_ulid(2),
+            "rename_item",
+            serde_json::json!({ "item_uuid": a, "name": "a3" }),
+        )?;
+        insert_test_intent(
+            &conn,
+            list_id,
+            &test_ulid(3),
+            "add_item",
+            serde_json::json!({ "item_uuid": b, "name": "b" }),
+        )?;
+
+        compact_list_unconditional(&conn, list_id).map_err(|e| test_error(e.message))?;
+
+        let snapshot = read_snapshot_json(&conn, list_id)?;
+        let items = snapshot
+            .get("items")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| test_error("snapshot.items missing".into()))?;
+
+        assert!(snapshot.is_object());
+        assert_eq!(items.len(), 2);
+        assert!(items.iter().any(|item| {
+            item.get("item_uuid").and_then(|v| v.as_str()) == Some(a.as_str())
+                && item.get("name").and_then(|v| v.as_str()) == Some("a3")
+        }));
+        assert!(items.iter().any(|item| {
+            item.get("item_uuid").and_then(|v| v.as_str()) == Some(b.as_str())
+                && item.get("name").and_then(|v| v.as_str()) == Some("b")
+        }));
+        Ok(())
     }
 }
 
