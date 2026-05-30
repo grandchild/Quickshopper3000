@@ -7,6 +7,10 @@ edition = "2021"
 name = "qs3k-api"
 path = "qs3k-api.rs"
 
+[[bin]]
+name = "qs3k"
+path = "qs3k-cli.rs"
+
 [dependencies]
 tiny_http = "0.12"
 serde = { version = "1.0", features = ["derive"] }
@@ -14,6 +18,8 @@ serde_json = { version = "1.0", default-features = false, features = ["std"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
 jiff = "0.2"
 flate2 = { version = "1.0", default-features = false, features = ["rust_backend"] }
+unicode-normalization = "0.1.25"
+ureq = "3.3.0"
 
 [profile.release]
 opt-level = "z"
