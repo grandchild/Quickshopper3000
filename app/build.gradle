@@ -3,6 +3,13 @@ plugins {
     id 'com.google.devtools.ksp'
 }
 
+def versionFile = rootProject.file('version.properties')
+def versionProps = new Properties()
+if (versionFile.exists()) versionProps.load(versionFile.newDataInputStream())
+def buildNum = (versionProps['build'] ?: '0').toInteger() + 1
+versionProps['build'] = buildNum.toString()
+versionProps.store(versionFile.newDataOutputStream(), null)
+
 android {
     namespace 'org.effekthasch.quickshopper3k'
     compileSdk 36
@@ -11,8 +18,8 @@ android {
         applicationId "org.effekthasch.quickshopper3k"
         minSdk 26
         targetSdk 36
-        versionCode 1
-        versionName "1.0"
+        versionCode buildNum
+        versionName "1.0.$buildNum"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
