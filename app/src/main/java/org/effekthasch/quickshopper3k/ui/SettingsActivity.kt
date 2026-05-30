@@ -231,10 +231,18 @@ class SettingsActivity : AppCompatActivity() {
                 .setMessage("No such list exists on this server. You can create it.")
                 .setPositiveButton("Create") { _, _ ->
                     val listId = joinListInput.text?.toString()?.trim() ?: return@setPositiveButton
-                    prefsManager.listId = listId
-                    findViewById<TextView>(R.id.listIdDisplay).text =
-                        getString(R.string.list_id_label, listId)
-                    Toast.makeText(this, R.string.list_id_reset, Toast.LENGTH_SHORT).show()
+                    lifecycleScope.launch {
+                        val db = AppDatabase.getDatabase(this@SettingsActivity)
+                        withContext(Dispatchers.IO) {
+                            db.syncDao().purgeAll()
+                            db.syncDao().deleteSyncState("last_synced_ulid")
+                        }
+                        prefsManager.listId = listId
+                        joinListInput.text?.clear()
+                        findViewById<TextView>(R.id.listIdDisplay).text =
+                            getString(R.string.list_id_label, listId)
+                        Toast.makeText(this@SettingsActivity, R.string.joined_list, Toast.LENGTH_SHORT).show()
+                    }
                 }
                 .setNegativeButton(R.string.cancel, null)
                 .show()
