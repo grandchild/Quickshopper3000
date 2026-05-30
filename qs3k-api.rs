@@ -506,7 +506,8 @@ fn should_run_compaction_check(conn: &Connection, list_id: &str) -> ApiResult<bo
         Ok(last) => match last.parse::<Timestamp>() {
             Ok(last_ts) => now
                 .since(last_ts)
-                .map(|span| i64::from(span.get_hours()) >= COMPACTION_CHECK_INTERVAL_HOURS)
+                .and_then(|span| span.total(jiff::Unit::Hour))
+                .map(|hours| hours as i64 >= COMPACTION_CHECK_INTERVAL_HOURS)
                 .unwrap_or(true),
             Err(_) => true,
         },
