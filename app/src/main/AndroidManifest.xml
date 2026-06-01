@@ -27,7 +27,16 @@
             android:name=".ui.SettingsActivity"
             android:theme="@style/Theme.QuickShopper3k"
             android:parentActivityName=".MainActivity"
-        />
+            android:exported="true"
+        >
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="qs3k" />
+                <data android:scheme="qs3ks" />
+            </intent-filter>
+        </activity>
 
         <activity
             android:name=".ui.DebugActivity"

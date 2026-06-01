@@ -70,7 +70,7 @@
     <string name="share_list">Share list</string>
     <string name="join_list">Join list</string>
     <string name="join_list_title">Join shared list</string>
-    <string name="join_list_hint">Join list by ID</string>
+    <string name="join_list_hint">List ID or share link</string>
     <string
         name="join_list_warning"
     >This will replace your current list with the shared one. Continue?</string>

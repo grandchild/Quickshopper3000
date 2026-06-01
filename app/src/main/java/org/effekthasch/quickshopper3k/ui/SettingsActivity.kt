@@ -24,7 +24,7 @@ import kotlinx.coroutines.withContext
 import org.effekthasch.quickshopper3k.R
 import org.effekthasch.quickshopper3k.util.Ulid
 import org.effekthasch.quickshopper3k.data.local.AppDatabase
-import org.effekthasch.quickshopper3k.data.local.SyncStateEntity
+
 import org.effekthasch.quickshopper3k.data.sync.IntentApplier
 import org.effekthasch.quickshopper3k.data.sync.SyncHttpClient
 import org.effekthasch.quickshopper3k.data.sync.SyncIntentSerializer
@@ -32,11 +32,15 @@ import org.effekthasch.quickshopper3k.util.BackupManager
 import org.effekthasch.quickshopper3k.util.PreferencesManager
 
 class SettingsActivity : AppCompatActivity() {
+
+    data class PendingJoin(val serverUrl: String, val listId: String)
+
     private lateinit var prefsManager: PreferencesManager
     private lateinit var syncServerUriInput: TextInputEditText
     private lateinit var joinListInput: TextInputEditText
     private lateinit var joinListInputLayout: TextInputLayout
     private var validateJob: Job? = null
+    private var pendingJoin: PendingJoin? = null
 
     private val importBackupLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
@@ -58,9 +62,18 @@ class SettingsActivity : AppCompatActivity() {
         val listIdDisplay = findViewById<TextView>(R.id.listIdDisplay)
         listIdDisplay.text = getString(R.string.list_id_label, prefsManager.listId)
         listIdDisplay.setOnClickListener {
+            val serverUri = prefsManager.syncServerUri ?: return@setOnClickListener
+            val listId = prefsManager.listId
+            val link = when {
+                serverUri.startsWith("https://") ->
+                    "qs3ks://" + serverUri.removePrefix("https://").trimEnd('/') + "/$listId"
+                serverUri.startsWith("http://") ->
+                    "qs3k://" + serverUri.removePrefix("http://").trimEnd('/') + "/$listId"
+                else -> return@setOnClickListener
+            }
             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, prefsManager.listId)
+                putExtra(Intent.EXTRA_TEXT, link)
             }
             startActivity(Intent.createChooser(shareIntent, getString(R.string.share_list)))
         }
@@ -84,6 +97,35 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.importBackupButton).setOnClickListener {
             importBackupLauncher.launch("*/*")
         }
+
+        intent?.data?.toString()?.let { uriStr ->
+            parsePendingJoin(uriStr, null)?.let { pj ->
+                pendingJoin = pj
+                lifecycleScope.launch { executeJoin(pj) }
+            }
+        }
+    }
+
+    private fun parsePendingJoin(input: String, fallbackServerUrl: String?): PendingJoin? {
+        val trimmed = input.trim()
+        if (trimmed.startsWith("qs3ks://") || trimmed.startsWith("qs3k://")) {
+            val secure = trimmed.startsWith("qs3ks://")
+            val scheme = if (secure) "qs3ks://" else "qs3k://"
+            val rest = trimmed.removePrefix(scheme).trimEnd('/')
+            val lastSlash = rest.lastIndexOf('/')
+            if (lastSlash < 0) return null
+            val listId = rest.substring(lastSlash + 1)
+            if (!Ulid.isValid(listId)) return null
+            val hostAndPath = rest.substring(0, lastSlash)
+            val serverUrl = (if (secure) "https://" else "http://") + hostAndPath
+            return PendingJoin(serverUrl, listId)
+        }
+        if (Ulid.isValid(trimmed)) {
+            val server = fallbackServerUrl ?: return null
+            if (server.isBlank()) return null
+            return PendingJoin(server, trimmed)
+        }
+        return null
     }
 
     private suspend fun resetListId() {
@@ -115,45 +157,45 @@ class SettingsActivity : AppCompatActivity() {
                 validateJob?.cancel()
                 val text = s?.toString()?.trim() ?: return
                 if (text.isEmpty()) return
-                if (!Ulid.isValid(text)) {
+
+                val fallback = syncServerUriInput.text?.toString()?.trim()
+                val parsed = parsePendingJoin(text, fallback)
+                if (parsed == null) {
                     joinListInputLayout.error = getString(R.string.error_invalid_list_id)
                     return
                 }
-                if (text == prefsManager.listId) {
+                if (parsed.listId == prefsManager.listId) {
                     joinListInputLayout.error = getString(R.string.error_same_list)
                     return
                 }
                 validateJob = lifecycleScope.launch {
                     delay(500)
-                    validateAndJoin(text)
+                    pendingJoin = parsed
+                    executeJoin(parsed)
                 }
             }
         })
     }
 
-    private suspend fun validateAndJoin(listId: String) {
-        val baseUrl = prefsManager.syncServerUri
-        if (baseUrl == null) {
-            joinListInputLayout.error = getString(R.string.error_no_server)
-            return
-        }
-
+    private suspend fun executeJoin(pending: PendingJoin) {
         val serverResult = withContext(Dispatchers.IO) {
             runCatching {
-                val client = SyncHttpClient(baseUrl)
-                val httpResult = client.getIntents(listId, null).getOrThrow()
-                org.json.JSONArray(httpResult.body)
+                val client = SyncHttpClient(pending.serverUrl)
+                val httpResult = client.getIntents(pending.listId, null).getOrThrow()
+                val body = httpResult.body
+                val parsed = org.json.JSONObject(body)
+                if (parsed.has("intents")) parsed.getJSONArray("intents") else org.json.JSONArray(body)
             }
         }
 
         if (serverResult.isFailure) {
-            showNoSuchListModal()
+            showNoSuchListModal(pending)
             return
         }
 
         val intents = serverResult.getOrNull()
         if (intents == null) {
-            showNoSuchListModal()
+            showNoSuchListModal(pending)
             return
         }
 
@@ -163,46 +205,30 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         if (isEmpty) {
-            // Just join directly, skip modal
-            val applyResult = withContext(Dispatchers.IO) {
-                runCatching {
-                    val db = AppDatabase.getDatabase(this@SettingsActivity)
-                    val applier = IntentApplier(db.itemDao(), db.storeDao(), db.syncDao())
-                    for (i in 0 until intents.length()) {
-                        val json = intents.getJSONObject(i)
-                        val envelope = SyncIntentSerializer.fromJson(json) ?: continue
-                        val serverUlid = envelope.serverUlid ?: continue
-                        applier.apply(envelope.intent, serverUlid)
-                    }
-                    prefsManager.listId = listId
-                }
-            }
-            if (applyResult.isSuccess) {
-                joinListInput.text?.clear()
-                findViewById<TextView>(R.id.listIdDisplay).text =
-                    getString(R.string.list_id_label, listId)
-                Toast.makeText(this, R.string.joined_list, Toast.LENGTH_SHORT).show()
-            } else {
-                joinListInputLayout.error = getString(R.string.error_join_list)
-            }
+            applyJoin(pending, intents)
             return
         }
 
         val confirmed = showJoinOptionsDialog(listExists = true)
         if (confirmed == JoinAction.CANCEL) {
             joinListInput.text?.clear()
+            pendingJoin = null
             return
         }
 
         if (confirmed == JoinAction.BACKUP_AND_JOIN) {
-            val backupManager = org.effekthasch.quickshopper3k.util.BackupManager(this)
-            val backupResult = backupManager.exportBackup()
-            // No error handling here, user can check backup manually if needed
+            BackupManager(this).exportBackup()
         }
 
-        val applyResult = withContext(Dispatchers.IO) {
+        applyJoin(pending, intents)
+    }
+
+    private suspend fun applyJoin(pending: PendingJoin, intents: org.json.JSONArray) {
+        val result = withContext(Dispatchers.IO) {
             runCatching {
                 val db = AppDatabase.getDatabase(this@SettingsActivity)
+                db.syncDao().purgeAll()
+                db.syncDao().deleteSyncState("last_synced_ulid")
                 val applier = IntentApplier(db.itemDao(), db.storeDao(), db.syncDao())
                 for (i in 0 until intents.length()) {
                     val json = intents.getJSONObject(i)
@@ -210,41 +236,45 @@ class SettingsActivity : AppCompatActivity() {
                     val serverUlid = envelope.serverUlid ?: continue
                     applier.apply(envelope.intent, serverUlid)
                 }
-                prefsManager.listId = listId
             }
         }
-
-        if (applyResult.isSuccess) {
+        if (result.isSuccess) {
+            prefsManager.syncServerUri = pending.serverUrl
+            prefsManager.listId = pending.listId
+            syncServerUriInput.setText(pending.serverUrl)
             joinListInput.text?.clear()
             findViewById<TextView>(R.id.listIdDisplay).text =
-                getString(R.string.list_id_label, listId)
+                getString(R.string.list_id_label, pending.listId)
             Toast.makeText(this, R.string.joined_list, Toast.LENGTH_SHORT).show()
         } else {
             joinListInputLayout.error = getString(R.string.error_join_list)
         }
+        pendingJoin = null
     }
 
-    private fun showNoSuchListModal() {
+    private fun showNoSuchListModal(pending: PendingJoin) {
         runOnUiThread {
             AlertDialog.Builder(this)
                 .setTitle(R.string.join_list_title)
                 .setMessage("No such list exists on this server. You can create it.")
                 .setPositiveButton("Create") { _, _ ->
-                    val listId = joinListInput.text?.toString()?.trim() ?: return@setPositiveButton
                     lifecycleScope.launch {
                         val db = AppDatabase.getDatabase(this@SettingsActivity)
                         withContext(Dispatchers.IO) {
                             db.syncDao().purgeAll()
                             db.syncDao().deleteSyncState("last_synced_ulid")
                         }
-                        prefsManager.listId = listId
+                        prefsManager.syncServerUri = pending.serverUrl
+                        prefsManager.listId = pending.listId
+                        syncServerUriInput.setText(pending.serverUrl)
                         joinListInput.text?.clear()
                         findViewById<TextView>(R.id.listIdDisplay).text =
-                            getString(R.string.list_id_label, listId)
+                            getString(R.string.list_id_label, pending.listId)
                         Toast.makeText(this@SettingsActivity, R.string.joined_list, Toast.LENGTH_SHORT).show()
+                        pendingJoin = null
                     }
                 }
-                .setNegativeButton(R.string.cancel, null)
+                .setNegativeButton(R.string.cancel) { _, _ -> pendingJoin = null }
                 .show()
         }
     }
@@ -386,6 +416,7 @@ class SettingsActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        if (pendingJoin != null) return
         val value = syncServerUriInput.text?.toString()?.trim()
         prefsManager.syncServerUri = if (value.isNullOrBlank()) null else value
     }
