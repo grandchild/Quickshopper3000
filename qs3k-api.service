@@ -7,6 +7,7 @@ Wants=network.target
 User=http
 Group=http
 WorkingDirectory=/mnt/vol01/websites/effekthasch.org/qs3k/
+Environment=QS3K_PUBLIC_URL=https://effekthasch.org/qs3k-api
 ExecStart=/mnt/vol01/websites/effekthasch.org/qs3k/qs3k-api
 Restart=always
 

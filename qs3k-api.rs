@@ -13,6 +13,7 @@ use tiny_http::{Header, Method, Request, Response, Server};
 #[derive(Clone)]
 struct AppState {
     db: Arc<Mutex<Connection>>,
+    public_url: Option<String>,
 }
 
 #[derive(Debug)]
@@ -586,6 +587,10 @@ fn ulid_digit(c: char) -> Option<u8> {
         'a'..='z' => Some(10 + (c as u8) - b'a'),
         _ => None,
     }
+}
+
+fn is_valid_ulid(s: &str) -> bool {
+    s.len() == 26 && s.bytes().all(|b| b.is_ascii_alphanumeric())
 }
 
 fn decode_ulid_timestamp_ms(ulid: &str) -> Option<u64> {
@@ -1388,6 +1393,27 @@ fn route_request(
             })
         }
 
+        (Method::Get, [list_uuid]) if is_valid_ulid(list_uuid) => {
+            match &state.public_url {
+                None => Err(ErrorInfo { status: 404, message: "Not found".into() }),
+                Some(base) => {
+                    let base = base.trim_end_matches('/');
+                    let deep_link = if base.starts_with("https://") {
+                        format!("qs3ks://{}/{}", &base[8..], list_uuid)
+                    } else if base.starts_with("http://") {
+                        format!("qs3k://{}/{}", &base[7..], list_uuid)
+                    } else {
+                        return Err(ErrorInfo { status: 500, message: "Invalid public URL".into() });
+                    };
+                    let mut response = Response::from_string("").with_status_code(302);
+                    if let Some(h) = safe_header(b"Location", deep_link.as_bytes()) {
+                        response = response.with_header(h);
+                    }
+                    Ok(response)
+                }
+            }
+        }
+
         _ => Err(ErrorInfo {
             status: 404,
             message: "Not found".into(),
@@ -1433,7 +1459,7 @@ fn handle_request(mut request: Request, state: &AppState) {
             .split('/')
             .collect();
 
-        if path_parts.len() < 2 {
+        if path_parts.is_empty() || path_parts == [""] {
             error_response("Invalid path", 404)
         } else {
             match route_request(method, &path_parts, &mut request, state, &query_map) {
@@ -1746,8 +1772,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         return Ok(());
     }
 
+    let public_url = std::env::var("QS3K_PUBLIC_URL").ok();
+
     let state = AppState {
         db: Arc::new(Mutex::new(conn)),
+        public_url,
     };
 
     let server = Server::http("127.0.0.1:50484").map_err(|e| format!("{e}"))?;
