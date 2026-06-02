@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
-    fmt,
-    fs,
+    fmt, fs,
     path::PathBuf,
     process,
     time::{SystemTime, UNIX_EPOCH},
@@ -19,9 +18,8 @@ struct Config {
 }
 
 fn config_dir() -> PathBuf {
-    let base = std::env::var("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| {
+    let base =
+        std::env::var("XDG_CONFIG_HOME").map(PathBuf::from).unwrap_or_else(|_| {
             let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
             PathBuf::from(home).join(".config")
         });
@@ -107,10 +105,9 @@ fn get_or_create_device_id(cfg: &mut Config) -> String {
 // ── ULID ─────────────────────────────────────────────────────────────────────
 
 fn generate_ulid() -> String {
-    let now_ms = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
+    let now_ms =
+        SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis()
+            as u64;
 
     // Simple xorshift-based random (no dep needed, non-crypto)
     static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -213,7 +210,9 @@ impl ListState {
         let p = &intent.payload;
         match intent.intent_type.as_str() {
             "add_item" | "bulk_add_items" => {
-                let items_to_add: Vec<(String, String)> = if intent.intent_type == "add_item" {
+                let items_to_add: Vec<(String, String)> = if intent.intent_type
+                    == "add_item"
+                {
                     match (
                         p.get("item_uuid").and_then(|v| v.as_str()),
                         p.get("name").and_then(|v| v.as_str()),
@@ -310,9 +309,7 @@ impl ListState {
 
 fn fetch_list_state(server_url: &str, list_id: &str) -> Result<ListState, String> {
     let url = format!("{}/list/{}/snapshot", server_url.trim_end_matches('/'), list_id);
-    let resp = ureq::get(&url)
-        .call()
-        .map_err(|e| format!("GET {url}: {e}"))?;
+    let resp = ureq::get(&url).call().map_err(|e| format!("GET {url}: {e}"))?;
 
     let body = resp
         .into_body()
@@ -333,7 +330,9 @@ fn fetch_list_state(server_url: &str, list_id: &str) -> Result<ListState, String
         eprintln!("[debug] {} items in state after apply:", state.items.len());
         let mut names: Vec<&str> = state.items.values().map(|s| s.as_str()).collect();
         names.sort();
-        for n in names { eprintln!("  {:?}", n); }
+        for n in names {
+            eprintln!("  {:?}", n);
+        }
     }
     Ok(state)
 }
@@ -357,8 +356,8 @@ fn post_intents(
         .collect();
 
     let url = format!("{}/list/{}/intents", server_url.trim_end_matches('/'), list_id);
-    let body_str =
-        serde_json::to_string(&envelopes).map_err(|e| format!("serialising intents: {e}"))?;
+    let body_str = serde_json::to_string(&envelopes)
+        .map_err(|e| format!("serialising intents: {e}"))?;
 
     let resp = ureq::post(&url)
         .header("Content-Type", "application/json")
@@ -453,7 +452,9 @@ fn run() -> Result<(), CliError> {
         "search" => cmd_search(rest, server_override, list_override),
         "--complete" => cmd_complete(rest, server_override, list_override),
         "show" => cmd_show(server_override, list_override),
-        other => Err(CliError::Usage(format!("unknown command '{other}'\n\n{}", usage()))),
+        other => {
+            Err(CliError::Usage(format!("unknown command '{other}'\n\n{}", usage())))
+        }
     }
 }
 
@@ -472,9 +473,18 @@ fn cmd_config(args: &[String]) -> Result<(), CliError> {
         }
         [cmd] if cmd == "show" => {
             println!("config file : {}", config_path().display());
-            println!("server_url  : {}", cfg.server_url.as_deref().unwrap_or("(not set)"));
-            println!("default_list: {}", cfg.default_list_id.as_deref().unwrap_or("(not set)"));
-            println!("device_id   : {}", cfg.device_id.as_deref().unwrap_or("(not generated yet)"));
+            println!(
+                "server_url  : {}",
+                cfg.server_url.as_deref().unwrap_or("(not set)")
+            );
+            println!(
+                "default_list: {}",
+                cfg.default_list_id.as_deref().unwrap_or("(not set)")
+            );
+            println!(
+                "device_id   : {}",
+                cfg.device_id.as_deref().unwrap_or("(not generated yet)")
+            );
         }
         _ => {
             return Err(CliError::Usage(
@@ -487,25 +497,35 @@ fn cmd_config(args: &[String]) -> Result<(), CliError> {
 
 fn state_symbol(state: &str) -> &'static str {
     match state {
-        "ACTIVATED"   => "\u{2713}", // ✓
-        "POSTPONED"   => "~",
-        _             => "+",        // DEACTIVATED or unknown
+        "ACTIVATED" => "\u{2713}", // ✓
+        "POSTPONED" => "~",
+        _ => "+", // DEACTIVATED or unknown
     }
 }
 
-fn cmd_search(args: &[String], server_override: Option<String>, list_override: Option<String>) -> Result<(), CliError> {
+fn cmd_search(
+    args: &[String],
+    server_override: Option<String>,
+    list_override: Option<String>,
+) -> Result<(), CliError> {
     let query = args.join(" ");
     let cfg = load_config();
 
-    let server_url = server_override
-        .or_else(|| cfg.server_url.clone())
-        .ok_or_else(|| CliError::Fatal("no server URL configured — run: qs3k config set-server <URL>".into()))?;
+    let server_url =
+        server_override.or_else(|| cfg.server_url.clone()).ok_or_else(|| {
+            CliError::Fatal(
+                "no server URL configured — run: qs3k config set-server <URL>".into(),
+            )
+        })?;
 
     let list_id = list_override
         .or_else(|| cfg.default_list_id.clone())
-        .ok_or_else(|| CliError::Fatal(
-            "no list specified — use --list <LIST_ID> or run: qs3k config set-list <LIST_ID>".into(),
-        ))?;
+        .ok_or_else(|| {
+            CliError::Fatal(
+                "no list specified — use --list <LIST_ID> or run: qs3k config set-list <LIST_ID>"
+                    .into(),
+            )
+        })?;
 
     let state = fetch_list_state(&server_url, &list_id)
         .map_err(|e| CliError::Fatal(format!("failed to fetch list: {e}")))?;
@@ -514,7 +534,9 @@ fn cmd_search(args: &[String], server_override: Option<String>, list_override: O
     let mut results: Vec<(String, String)> = state
         .items
         .iter()
-        .filter(|(_, name)| query_folded.is_empty() || fold(name).contains(&query_folded))
+        .filter(|(_, name)| {
+            query_folded.is_empty() || fold(name).contains(&query_folded)
+        })
         .map(|(uuid, name)| (name.clone(), state.state_of(uuid).to_string()))
         .collect();
 
@@ -533,7 +555,11 @@ fn cmd_search(args: &[String], server_override: Option<String>, list_override: O
 /// Internal verb used by shell completion scripts.
 /// Usage: qs3k [--server X] [--list Y] --complete <verb> <prefix>
 /// Prints one candidate per line, prefixed with state symbol.
-fn cmd_complete(args: &[String], server_override: Option<String>, list_override: Option<String>) -> Result<(), CliError> {
+fn cmd_complete(
+    args: &[String],
+    server_override: Option<String>,
+    list_override: Option<String>,
+) -> Result<(), CliError> {
     // args: [verb, prefix]  (prefix may be absent)
     let prefix = args.get(1).map(|s| s.as_str()).unwrap_or("");
     // For now all verbs complete against all items; callers can filter by symbol if desired.
@@ -543,8 +569,14 @@ fn cmd_complete(args: &[String], server_override: Option<String>, list_override:
 fn cmd_completions(args: &[String]) -> Result<(), CliError> {
     let shell = args.first().map(|s| s.as_str()).unwrap_or("");
     match shell {
-        "bash" => { print!("{}", completion_script_bash()); Ok(()) }
-        "zsh"  => { print!("{}", completion_script_zsh());  Ok(()) }
+        "bash" => {
+            print!("{}", completion_script_bash());
+            Ok(())
+        }
+        "zsh" => {
+            print!("{}", completion_script_zsh());
+            Ok(())
+        }
         _ => Err(CliError::Usage(
             "Usage: qs3k completions <shell>\nSupported shells: bash, zsh".into(),
         )),
@@ -641,23 +673,30 @@ _qs3k
 "#
 }
 
-fn cmd_show(server_override: Option<String>, list_override: Option<String>) -> Result<(), CliError> {
+fn cmd_show(
+    server_override: Option<String>,
+    list_override: Option<String>,
+) -> Result<(), CliError> {
     let cfg = load_config();
 
-    let server_url = server_override
-        .or_else(|| cfg.server_url.clone())
-        .ok_or_else(|| CliError::Fatal("no server URL configured — run: qs3k config set-server <URL>".into()))?;
+    let server_url =
+        server_override.or_else(|| cfg.server_url.clone()).ok_or_else(|| {
+            CliError::Fatal(
+                "no server URL configured — run: qs3k config set-server <URL>".into(),
+            )
+        })?;
 
     let list_id = list_override
         .or_else(|| cfg.default_list_id.clone())
         .ok_or_else(|| {
             CliError::Fatal(
-                "no list specified — use --list <LIST_ID> or run: qs3k config set-list <LIST_ID>".into(),
+                "no list specified — use --list <LIST_ID> or run: qs3k config set-list <LIST_ID>"
+                    .into(),
             )
         })?;
 
-    let state =
-        fetch_list_state(&server_url, &list_id).map_err(|e| CliError::Fatal(format!("failed to fetch list: {e}")))?;
+    let state = fetch_list_state(&server_url, &list_id)
+        .map_err(|e| CliError::Fatal(format!("failed to fetch list: {e}")))?;
 
     let mut active: Vec<&str> = state
         .items
@@ -678,29 +717,40 @@ fn cmd_show(server_override: Option<String>, list_override: Option<String>) -> R
     Ok(())
 }
 
-fn cmd_done(item_names: &[String], server_override: Option<String>, list_override: Option<String>) -> Result<(), CliError> {
+fn cmd_done(
+    item_names: &[String],
+    server_override: Option<String>,
+    list_override: Option<String>,
+) -> Result<(), CliError> {
     if item_names.is_empty() {
-        return Err(CliError::Usage(format!("'done' requires at least one item name\n\n{}", usage())));
+        return Err(CliError::Usage(format!(
+            "'done' requires at least one item name\n\n{}",
+            usage()
+        )));
     }
 
     let mut cfg = load_config();
 
-    let server_url = server_override
-        .or_else(|| cfg.server_url.clone())
-        .ok_or_else(|| CliError::Fatal("no server URL configured — run: qs3k config set-server <URL>".into()))?;
+    let server_url =
+        server_override.or_else(|| cfg.server_url.clone()).ok_or_else(|| {
+            CliError::Fatal(
+                "no server URL configured — run: qs3k config set-server <URL>".into(),
+            )
+        })?;
 
     let list_id = list_override
         .or_else(|| cfg.default_list_id.clone())
         .ok_or_else(|| {
             CliError::Fatal(
-                "no list specified — use --list <LIST_ID> or run: qs3k config set-list <LIST_ID>".into(),
+                "no list specified — use --list <LIST_ID> or run: qs3k config set-list <LIST_ID>"
+                    .into(),
             )
         })?;
 
     let device_id = get_or_create_device_id(&mut cfg);
 
-    let state =
-        fetch_list_state(&server_url, &list_id).map_err(|e| CliError::Fatal(format!("failed to fetch list: {e}")))?;
+    let state = fetch_list_state(&server_url, &list_id)
+        .map_err(|e| CliError::Fatal(format!("failed to fetch list: {e}")))?;
 
     let mut intents: Vec<(&str, serde_json::Value)> = Vec::new();
     let mut actions: Vec<(String, &str)> = Vec::new();
@@ -744,30 +794,41 @@ fn cmd_done(item_names: &[String], server_override: Option<String>, list_overrid
     Ok(())
 }
 
-fn cmd_add(item_names: &[String], server_override: Option<String>, list_override: Option<String>) -> Result<(), CliError> {
+fn cmd_add(
+    item_names: &[String],
+    server_override: Option<String>,
+    list_override: Option<String>,
+) -> Result<(), CliError> {
     if item_names.is_empty() {
-        return Err(CliError::Usage(format!("'add' requires at least one item name\n\n{}", usage())));
+        return Err(CliError::Usage(format!(
+            "'add' requires at least one item name\n\n{}",
+            usage()
+        )));
     }
 
     let mut cfg = load_config();
 
-    let server_url = server_override
-        .or_else(|| cfg.server_url.clone())
-        .ok_or_else(|| CliError::Fatal("no server URL configured — run: qs3k config set-server <URL>".into()))?;
+    let server_url =
+        server_override.or_else(|| cfg.server_url.clone()).ok_or_else(|| {
+            CliError::Fatal(
+                "no server URL configured — run: qs3k config set-server <URL>".into(),
+            )
+        })?;
 
     let list_id = list_override
         .or_else(|| cfg.default_list_id.clone())
         .ok_or_else(|| {
             CliError::Fatal(
-                "no list specified — use --list <LIST_ID> or run: qs3k config set-list <LIST_ID>".into(),
+                "no list specified — use --list <LIST_ID> or run: qs3k config set-list <LIST_ID>"
+                    .into(),
             )
         })?;
 
     let device_id = get_or_create_device_id(&mut cfg);
 
     // Fetch current state to decide add vs. activate per item
-    let state =
-        fetch_list_state(&server_url, &list_id).map_err(|e| CliError::Fatal(format!("failed to fetch list: {e}")))?;
+    let state = fetch_list_state(&server_url, &list_id)
+        .map_err(|e| CliError::Fatal(format!("failed to fetch list: {e}")))?;
 
     let mut intents: Vec<(&str, serde_json::Value)> = Vec::new();
     // Track activations separately so we can report them
