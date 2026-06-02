@@ -138,31 +138,19 @@ const STALE_DEVICE_HOURS: i64 = 60 * 24;
 const COMPACTION_CHECK_INTERVAL_HOURS: i64 = 12;
 
 fn db_error(e: rusqlite::Error) -> ErrorInfo {
-    ErrorInfo {
-        status: 500,
-        message: format!("Database error: {e}"),
-    }
+    ErrorInfo { status: 500, message: format!("Database error: {e}") }
 }
 
 fn json_error(e: serde_json::Error) -> ErrorInfo {
-    ErrorInfo {
-        status: 500,
-        message: format!("JSON serialization error: {e}"),
-    }
+    ErrorInfo { status: 500, message: format!("JSON serialization error: {e}") }
 }
 
 fn read_body_error(e: String) -> ErrorInfo {
-    ErrorInfo {
-        status: 400,
-        message: e,
-    }
+    ErrorInfo { status: 400, message: e }
 }
 
 fn invalid_json() -> ErrorInfo {
-    ErrorInfo {
-        status: 400,
-        message: "Invalid JSON".into(),
-    }
+    ErrorInfo { status: 400, message: "Invalid JSON".into() }
 }
 
 fn generate_ulid() -> String {
@@ -313,9 +301,7 @@ fn migrate_db(conn: &Connection) -> SqliteResult<()> {
 }
 
 fn get_current_timestamp() -> String {
-    Timestamp::now()
-        .strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-        .to_string()
+    Timestamp::now().strftime("%Y-%m-%dT%H:%M:%S.%fZ").to_string()
 }
 
 fn lock_db(state: &AppState) -> ApiResult<MutexGuard<'_, Connection>> {
@@ -344,7 +330,9 @@ fn cors_headers() -> Vec<Header> {
     .collect()
 }
 
-fn json_response<T: Serialize>(data: &T) -> ApiResult<Response<std::io::Cursor<Vec<u8>>>> {
+fn json_response<T: Serialize>(
+    data: &T,
+) -> ApiResult<Response<std::io::Cursor<Vec<u8>>>> {
     let json = serde_json::to_string(data).map_err(json_error)?;
     let mut response = Response::from_string(json);
     if let Some(h) = safe_header(b"Content-Type", b"application/json") {
@@ -393,7 +381,8 @@ fn cors_response() -> Response<std::io::Cursor<Vec<u8>>> {
 
 fn read_body(request: &mut Request) -> Result<String, String> {
     let is_gzipped = request.headers().iter().any(|h| {
-        h.field.equiv("Content-Encoding") && h.value.as_str().eq_ignore_ascii_case("gzip")
+        h.field.equiv("Content-Encoding")
+            && h.value.as_str().eq_ignore_ascii_case("gzip")
     });
 
     let mut body = String::new();
@@ -450,7 +439,11 @@ fn track_device_sync(
     Ok(())
 }
 
-fn load_intents_since(conn: &Connection, list_id: &str, since: &str) -> ApiResult<Vec<Intent>> {
+fn load_intents_since(
+    conn: &Connection,
+    list_id: &str,
+    since: &str,
+) -> ApiResult<Vec<Intent>> {
     let mut stmt = conn
         .prepare(
             "SELECT server_ulid, device_ulid, device_id, list_id, intent_type, payload_json
@@ -478,7 +471,8 @@ fn load_intents_since(conn: &Connection, list_id: &str, since: &str) -> ApiResul
     for row in rows {
         let (server_ulid, device_ulid, device_id, list_id, intent_type, payload_str) =
             row.map_err(db_error)?;
-        let payload: serde_json::Value = serde_json::from_str(&payload_str).map_err(json_error)?;
+        let payload: serde_json::Value =
+            serde_json::from_str(&payload_str).map_err(json_error)?;
         intents.push(Intent {
             device_ulid,
             server_ulid: Some(server_ulid),
@@ -537,33 +531,38 @@ fn payload_str<'a>(
     key: &str,
     intent_type: &str,
 ) -> ApiResult<&'a str> {
-    payload
-        .get(key)
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| ErrorInfo {
-            status: 500,
-            message: format!("Cannot compact malformed {intent_type}: missing string '{key}'"),
-        })
+    payload.get(key).and_then(|v| v.as_str()).ok_or_else(|| ErrorInfo {
+        status: 500,
+        message: format!(
+            "Cannot compact malformed {intent_type}: missing string '{key}'"
+        ),
+    })
 }
 
-fn payload_bool(payload: &serde_json::Value, key: &str, intent_type: &str) -> ApiResult<bool> {
-    payload
-        .get(key)
-        .and_then(|v| v.as_bool())
-        .ok_or_else(|| ErrorInfo {
-            status: 500,
-            message: format!("Cannot compact malformed {intent_type}: missing bool '{key}'"),
-        })
+fn payload_bool(
+    payload: &serde_json::Value,
+    key: &str,
+    intent_type: &str,
+) -> ApiResult<bool> {
+    payload.get(key).and_then(|v| v.as_bool()).ok_or_else(|| ErrorInfo {
+        status: 500,
+        message: format!(
+            "Cannot compact malformed {intent_type}: missing bool '{key}'"
+        ),
+    })
 }
 
-fn payload_i64(payload: &serde_json::Value, key: &str, intent_type: &str) -> ApiResult<i64> {
-    payload
-        .get(key)
-        .and_then(|v| v.as_i64())
-        .ok_or_else(|| ErrorInfo {
-            status: 500,
-            message: format!("Cannot compact malformed {intent_type}: missing integer '{key}'"),
-        })
+fn payload_i64(
+    payload: &serde_json::Value,
+    key: &str,
+    intent_type: &str,
+) -> ApiResult<i64> {
+    payload.get(key).and_then(|v| v.as_i64()).ok_or_else(|| ErrorInfo {
+        status: 500,
+        message: format!(
+            "Cannot compact malformed {intent_type}: missing integer '{key}'"
+        ),
+    })
 }
 
 fn payload_array<'a>(
@@ -571,13 +570,12 @@ fn payload_array<'a>(
     key: &str,
     intent_type: &str,
 ) -> ApiResult<&'a Vec<serde_json::Value>> {
-    payload
-        .get(key)
-        .and_then(|v| v.as_array())
-        .ok_or_else(|| ErrorInfo {
-            status: 500,
-            message: format!("Cannot compact malformed {intent_type}: missing array '{key}'"),
-        })
+    payload.get(key).and_then(|v| v.as_array()).ok_or_else(|| ErrorInfo {
+        status: 500,
+        message: format!(
+            "Cannot compact malformed {intent_type}: missing array '{key}'"
+        ),
+    })
 }
 
 fn ulid_digit(c: char) -> Option<u8> {
@@ -614,8 +612,7 @@ impl MaterializedState {
         self.items.remove(item_uuid);
         self.availability
             .retain(|(_, entry_item_uuid), _| entry_item_uuid != item_uuid);
-        self.item_order
-            .retain(|(_, entry_item_uuid), _| entry_item_uuid != item_uuid);
+        self.item_order.retain(|(_, entry_item_uuid), _| entry_item_uuid != item_uuid);
     }
 
     fn delete_store(&mut self, store_uuid: &str) {
@@ -633,7 +630,8 @@ impl MaterializedState {
         };
 
         let current_state = item.state.clone();
-        let is_concurrent = !previous_state.is_empty() && previous_state != current_state;
+        let is_concurrent =
+            !previous_state.is_empty() && previous_state != current_state;
         if is_concurrent {
             let incoming_priority = match state {
                 "DEACTIVATED" => Some(0),
@@ -665,7 +663,9 @@ impl MaterializedState {
             "add_item" => {
                 let item_uuid = payload_str(&intent.payload, "item_uuid", "add_item")?;
                 let name = payload_str(&intent.payload, "name", "add_item")?;
-                if self.deleted_items.contains(item_uuid) || self.items.contains_key(item_uuid) {
+                if self.deleted_items.contains(item_uuid)
+                    || self.items.contains_key(item_uuid)
+                {
                     return Ok(());
                 }
                 let created_at = decode_ulid_timestamp_ms(item_uuid).unwrap_or(0);
@@ -680,82 +680,104 @@ impl MaterializedState {
                 );
             }
             "delete_item" => {
-                let item_uuid = payload_str(&intent.payload, "item_uuid", "delete_item")?;
+                let item_uuid =
+                    payload_str(&intent.payload, "item_uuid", "delete_item")?;
                 self.delete_item(item_uuid);
             }
             "rename_item" => {
-                let item_uuid = payload_str(&intent.payload, "item_uuid", "rename_item")?;
+                let item_uuid =
+                    payload_str(&intent.payload, "item_uuid", "rename_item")?;
                 let name = payload_str(&intent.payload, "name", "rename_item")?;
                 if let Some(item) = self.items.get_mut(item_uuid) {
                     item.name = name.to_owned();
                 }
             }
             "set_item_state" => {
-                let item_uuid = payload_str(&intent.payload, "item_uuid", "set_item_state")?;
+                let item_uuid =
+                    payload_str(&intent.payload, "item_uuid", "set_item_state")?;
                 let state = payload_str(&intent.payload, "state", "set_item_state")?;
                 let previous_state =
                     payload_str(&intent.payload, "previous_state", "set_item_state")?;
                 self.apply_item_state(item_uuid, state, previous_state);
             }
             "set_item_amount" => {
-                let item_uuid = payload_str(&intent.payload, "item_uuid", "set_item_amount")?;
+                let item_uuid =
+                    payload_str(&intent.payload, "item_uuid", "set_item_amount")?;
                 let amount = payload_i64(&intent.payload, "amount", "set_item_amount")?;
                 if let Some(item) = self.items.get_mut(item_uuid) {
                     item.amount = amount;
                 }
             }
             "add_store" => {
-                let store_uuid = payload_str(&intent.payload, "store_uuid", "add_store")?;
+                let store_uuid =
+                    payload_str(&intent.payload, "store_uuid", "add_store")?;
                 let name = payload_str(&intent.payload, "name", "add_store")?;
-                let specialty = payload_bool(&intent.payload, "specialty", "add_store")?;
-                if self.deleted_stores.contains(store_uuid) || self.stores.contains_key(store_uuid)
+                let specialty =
+                    payload_bool(&intent.payload, "specialty", "add_store")?;
+                if self.deleted_stores.contains(store_uuid)
+                    || self.stores.contains_key(store_uuid)
                 {
                     return Ok(());
                 }
                 self.stores.insert(
                     store_uuid.to_owned(),
-                    MaterializedStore {
-                        name: name.to_owned(),
-                        specialty,
-                    },
+                    MaterializedStore { name: name.to_owned(), specialty },
                 );
             }
             "delete_store" => {
-                let store_uuid = payload_str(&intent.payload, "store_uuid", "delete_store")?;
+                let store_uuid =
+                    payload_str(&intent.payload, "store_uuid", "delete_store")?;
                 self.delete_store(store_uuid);
             }
             "update_store" => {
-                let store_uuid = payload_str(&intent.payload, "store_uuid", "update_store")?;
+                let store_uuid =
+                    payload_str(&intent.payload, "store_uuid", "update_store")?;
                 let name = payload_str(&intent.payload, "name", "update_store")?;
-                let specialty = payload_bool(&intent.payload, "specialty", "update_store")?;
+                let specialty =
+                    payload_bool(&intent.payload, "specialty", "update_store")?;
                 if let Some(store) = self.stores.get_mut(store_uuid) {
                     store.name = name.to_owned();
                     store.specialty = specialty;
                 }
             }
             "set_availability" => {
-                let store_uuid = payload_str(&intent.payload, "store_uuid", "set_availability")?;
-                let item_uuid = payload_str(&intent.payload, "item_uuid", "set_availability")?;
-                let available = payload_bool(&intent.payload, "available", "set_availability")?;
-                if self.stores.contains_key(store_uuid) && self.items.contains_key(item_uuid) {
-                    self.availability
-                        .insert((store_uuid.to_owned(), item_uuid.to_owned()), available);
+                let store_uuid =
+                    payload_str(&intent.payload, "store_uuid", "set_availability")?;
+                let item_uuid =
+                    payload_str(&intent.payload, "item_uuid", "set_availability")?;
+                let available =
+                    payload_bool(&intent.payload, "available", "set_availability")?;
+                if self.stores.contains_key(store_uuid)
+                    && self.items.contains_key(item_uuid)
+                {
+                    self.availability.insert(
+                        (store_uuid.to_owned(), item_uuid.to_owned()),
+                        available,
+                    );
                 }
             }
             "set_item_order" => {
-                let store_uuid = payload_str(&intent.payload, "store_uuid", "set_item_order")?;
-                let item_uuid = payload_str(&intent.payload, "item_uuid", "set_item_order")?;
-                let sort_order = payload_i64(&intent.payload, "sort_order", "set_item_order")?;
-                if self.stores.contains_key(store_uuid) && self.items.contains_key(item_uuid) {
-                    self.item_order
-                        .insert((store_uuid.to_owned(), item_uuid.to_owned()), sort_order);
+                let store_uuid =
+                    payload_str(&intent.payload, "store_uuid", "set_item_order")?;
+                let item_uuid =
+                    payload_str(&intent.payload, "item_uuid", "set_item_order")?;
+                let sort_order =
+                    payload_i64(&intent.payload, "sort_order", "set_item_order")?;
+                if self.stores.contains_key(store_uuid)
+                    && self.items.contains_key(item_uuid)
+                {
+                    self.item_order.insert(
+                        (store_uuid.to_owned(), item_uuid.to_owned()),
+                        sort_order,
+                    );
                 }
             }
             "bulk_add_items" => {
                 for item in payload_array(&intent.payload, "items", "bulk_add_items")? {
                     let item_uuid = payload_str(item, "item_uuid", "bulk_add_items")?;
                     let name = payload_str(item, "name", "bulk_add_items")?;
-                    if self.deleted_items.contains(item_uuid) || self.items.contains_key(item_uuid)
+                    if self.deleted_items.contains(item_uuid)
+                        || self.items.contains_key(item_uuid)
                     {
                         continue;
                     }
@@ -837,8 +859,10 @@ impl MaterializedState {
                     if self.stores.contains_key(&entry.store_uuid)
                         && self.items.contains_key(&entry.item_uuid)
                     {
-                        self.availability
-                            .insert((entry.store_uuid, entry.item_uuid), entry.available);
+                        self.availability.insert(
+                            (entry.store_uuid, entry.item_uuid),
+                            entry.available,
+                        );
                     }
                 }
 
@@ -846,8 +870,10 @@ impl MaterializedState {
                     if self.stores.contains_key(&entry.store_uuid)
                         && self.items.contains_key(&entry.item_uuid)
                     {
-                        self.item_order
-                            .insert((entry.store_uuid, entry.item_uuid), entry.sort_order);
+                        self.item_order.insert(
+                            (entry.store_uuid, entry.item_uuid),
+                            entry.sort_order,
+                        );
                     }
                 }
 
@@ -881,9 +907,7 @@ impl MaterializedState {
             })
             .collect();
         items.sort_by(|a, b| {
-            a.created_at
-                .cmp(&b.created_at)
-                .then_with(|| a.item_uuid.cmp(&b.item_uuid))
+            a.created_at.cmp(&b.created_at).then_with(|| a.item_uuid.cmp(&b.item_uuid))
         });
 
         let mut stores: Vec<SnapshotStore> = self
@@ -901,18 +925,14 @@ impl MaterializedState {
             .availability
             .iter()
             .filter(|(_, available)| !**available)
-            .map(
-                |((store_uuid, item_uuid), available)| SnapshotAvailability {
-                    store_uuid: store_uuid.clone(),
-                    item_uuid: item_uuid.clone(),
-                    available: *available,
-                },
-            )
+            .map(|((store_uuid, item_uuid), available)| SnapshotAvailability {
+                store_uuid: store_uuid.clone(),
+                item_uuid: item_uuid.clone(),
+                available: *available,
+            })
             .collect();
         availability.sort_by(|a, b| {
-            a.store_uuid
-                .cmp(&b.store_uuid)
-                .then_with(|| a.item_uuid.cmp(&b.item_uuid))
+            a.store_uuid.cmp(&b.store_uuid).then_with(|| a.item_uuid.cmp(&b.item_uuid))
         });
 
         let mut item_order: Vec<SnapshotItemOrder> = self
@@ -931,10 +951,12 @@ impl MaterializedState {
                 .then_with(|| a.item_uuid.cmp(&b.item_uuid))
         });
 
-        let mut deleted_items: Vec<String> = self.deleted_items.iter().cloned().collect();
+        let mut deleted_items: Vec<String> =
+            self.deleted_items.iter().cloned().collect();
         deleted_items.sort();
 
-        let mut deleted_stores: Vec<String> = self.deleted_stores.iter().cloned().collect();
+        let mut deleted_stores: Vec<String> =
+            self.deleted_stores.iter().cloned().collect();
         deleted_stores.sort();
 
         serde_json::to_value(MaterializedSnapshot {
@@ -979,8 +1001,14 @@ fn load_compactable_intents(
 
     let mut intents = Vec::new();
     for row in rows {
-        let (server_ulid, device_ulid, device_id, row_list_id, intent_type, payload_str) =
-            row.map_err(db_error)?;
+        let (
+            server_ulid,
+            device_ulid,
+            device_id,
+            row_list_id,
+            intent_type,
+            payload_str,
+        ) = row.map_err(db_error)?;
         intents.push(Intent {
             device_ulid,
             server_ulid: Some(server_ulid),
@@ -994,11 +1022,14 @@ fn load_compactable_intents(
     Ok(intents)
 }
 
-fn compact_list_internal(conn: &Connection, list_id: &str, force: bool) -> ApiResult<()> {
+fn compact_list_internal(
+    conn: &Connection,
+    list_id: &str,
+    force: bool,
+) -> ApiResult<()> {
     let now = Timestamp::now();
-    let stale_cutoff = now
-        .checked_sub(jiff::Span::new().hours(STALE_DEVICE_HOURS))
-        .unwrap_or(now);
+    let stale_cutoff =
+        now.checked_sub(jiff::Span::new().hours(STALE_DEVICE_HOURS)).unwrap_or(now);
     let stale_cutoff_s = stale_cutoff.strftime("%Y-%m-%dT%H:%M:%S.%fZ").to_string();
 
     let min_non_stale_hwm: Option<String> = conn
@@ -1056,8 +1087,8 @@ fn compact_list_internal(conn: &Connection, list_id: &str, force: bool) -> ApiRe
             )
             .map_err(db_error)?;
 
-        let should_compact =
-            backlog_count >= COMPACTION_BACKLOG_THRESHOLD || newest_before_tail.is_some();
+        let should_compact = backlog_count >= COMPACTION_BACKLOG_THRESHOLD
+            || newest_before_tail.is_some();
         if !should_compact {
             mark_compaction_check(conn, list_id)?;
             return Ok(());
@@ -1095,7 +1126,8 @@ fn compact_list_internal(conn: &Connection, list_id: &str, force: bool) -> ApiRe
         state.apply_intent(intent)?;
     }
 
-    let snapshot_json = serde_json::to_string(&state.to_snapshot_value()?).map_err(json_error)?;
+    let snapshot_json =
+        serde_json::to_string(&state.to_snapshot_value()?).map_err(json_error)?;
     let now_s = get_current_timestamp();
 
     conn.execute_batch("BEGIN").map_err(db_error)?;
@@ -1152,7 +1184,8 @@ fn get_snapshot(
         Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
     }) {
         Ok((ulid, json_str)) => {
-            let val: serde_json::Value = serde_json::from_str(&json_str).map_err(json_error)?;
+            let val: serde_json::Value =
+                serde_json::from_str(&json_str).map_err(json_error)?;
             Ok((Some(ulid), Some(val)))
         }
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok((None, None)),
@@ -1171,7 +1204,8 @@ fn route_request(
     match (method, path_parts) {
         (Method::Post, ["list", list_uuid, "intents"]) => {
             let body = read_body(request).map_err(read_body_error)?;
-            let intents: Vec<Intent> = serde_json::from_str(&body).map_err(|_| invalid_json())?;
+            let intents: Vec<Intent> =
+                serde_json::from_str(&body).map_err(|_| invalid_json())?;
 
             if intents.is_empty() {
                 return json_response(&serde_json::json!({
@@ -1195,7 +1229,10 @@ fn route_request(
             if total_intents > MAX_TOTAL_INTENTS {
                 return Err(ErrorInfo {
                     status: 413,
-                    message: format!("Intent limit exceeded (max {} intents)", MAX_TOTAL_INTENTS),
+                    message: format!(
+                        "Intent limit exceeded (max {} intents)",
+                        MAX_TOTAL_INTENTS
+                    ),
                 });
             }
 
@@ -1212,7 +1249,9 @@ fn route_request(
 
                 match intent.intent_type.as_str() {
                     "add_item" | "rename_item" => {
-                        if let Some(name) = intent.payload.get("name").and_then(|v| v.as_str()) {
+                        if let Some(name) =
+                            intent.payload.get("name").and_then(|v| v.as_str())
+                        {
                             if name.chars().count() > MAX_ITEM_NAME_LEN {
                                 return Err(ErrorInfo {
                                     status: 400,
@@ -1225,18 +1264,24 @@ fn route_request(
                         }
                     }
                     "set_item_amount" => {
-                        if let Some(amount) = intent.payload.get("amount").and_then(|v| v.as_i64())
+                        if let Some(amount) =
+                            intent.payload.get("amount").and_then(|v| v.as_i64())
                         {
                             if amount >= MAX_AMOUNT {
                                 return Err(ErrorInfo {
                                     status: 400,
-                                    message: format!("Amount too large (max {})", MAX_AMOUNT - 1),
+                                    message: format!(
+                                        "Amount too large (max {})",
+                                        MAX_AMOUNT - 1
+                                    ),
                                 });
                             }
                         }
                     }
                     "add_store" | "update_store" => {
-                        if let Some(name) = intent.payload.get("name").and_then(|v| v.as_str()) {
+                        if let Some(name) =
+                            intent.payload.get("name").and_then(|v| v.as_str())
+                        {
                             if name.chars().count() > MAX_STORE_NAME_LEN {
                                 return Err(ErrorInfo {
                                     status: 400,
@@ -1249,10 +1294,13 @@ fn route_request(
                         }
                     }
                     "bulk_add_items" => {
-                        if let Some(items) = intent.payload.get("items").and_then(|v| v.as_array())
+                        if let Some(items) =
+                            intent.payload.get("items").and_then(|v| v.as_array())
                         {
                             for item in items {
-                                if let Some(name) = item.get("name").and_then(|v| v.as_str()) {
+                                if let Some(name) =
+                                    item.get("name").and_then(|v| v.as_str())
+                                {
                                     if name.chars().count() > MAX_ITEM_NAME_LEN {
                                         return Err(ErrorInfo {
                                             status: 400,
@@ -1276,7 +1324,8 @@ fn route_request(
 
             for intent in &intents {
                 let server_ulid = generate_ulid();
-                let payload_json = serde_json::to_string(&intent.payload).map_err(json_error)?;
+                let payload_json =
+                    serde_json::to_string(&intent.payload).map_err(json_error)?;
 
                 conn.execute(
                     "INSERT INTO intent (list_id, server_ulid, device_ulid, device_id, intent_type, payload_json, created_at)
@@ -1317,7 +1366,8 @@ fn route_request(
                 if let Some(ref snap_ulid) = snapshot_ulid {
                     if since.as_str() < snap_ulid.as_str() {
                         let (_, snapshot) = get_snapshot(&conn, list_uuid)?;
-                        let subsequent = load_intents_since(&conn, list_uuid, snap_ulid)?;
+                        let subsequent =
+                            load_intents_since(&conn, list_uuid, snap_ulid)?;
                         return json_response(&SnapshotResponse {
                             snapshot_ulid,
                             snapshot,
@@ -1358,11 +1408,7 @@ fn route_request(
             let since = snapshot_ulid.as_deref().unwrap_or("");
             let intents = load_intents_since(&conn, list_uuid, since)?;
 
-            json_response(&SnapshotResponse {
-                snapshot_ulid,
-                snapshot,
-                intents,
-            })
+            json_response(&SnapshotResponse { snapshot_ulid, snapshot, intents })
         }
 
         (Method::Get, ["list", list_uuid, "debug"]) => {
@@ -1383,7 +1429,8 @@ fn route_request(
                 })
                 .map_err(db_error)?;
 
-            let devices: Vec<DeviceInfo> = dev_rows.collect::<Result<_, _>>().map_err(db_error)?;
+            let devices: Vec<DeviceInfo> =
+                dev_rows.collect::<Result<_, _>>().map_err(db_error)?;
 
             json_response(&DebugResponse {
                 intent_count: intents.len(),
@@ -1403,7 +1450,10 @@ fn route_request(
                     } else if base.starts_with("http://") {
                         format!("qs3k://{}/{}", &base[7..], list_uuid)
                     } else {
-                        return Err(ErrorInfo { status: 500, message: "Invalid public URL".into() });
+                        return Err(ErrorInfo {
+                            status: 500,
+                            message: "Invalid public URL".into(),
+                        });
                     };
                     let mut response = Response::from_string("").with_status_code(302);
                     if let Some(h) = safe_header(b"Location", deep_link.as_bytes()) {
@@ -1414,10 +1464,7 @@ fn route_request(
             }
         }
 
-        _ => Err(ErrorInfo {
-            status: 404,
-            message: "Not found".into(),
-        }),
+        _ => Err(ErrorInfo { status: 404, message: "Not found".into() }),
     }
 }
 
@@ -1453,11 +1500,8 @@ fn handle_request(mut request: Request, state: &AppState) {
             (url_path, HashMap::new())
         };
 
-        let path_parts: Vec<&str> = path
-            .trim_start_matches('/')
-            .trim_end_matches('/')
-            .split('/')
-            .collect();
+        let path_parts: Vec<&str> =
+            path.trim_start_matches('/').trim_end_matches('/').split('/').collect();
 
         if path_parts.is_empty() || path_parts == [""] {
             error_response("Invalid path", 404)
@@ -1557,9 +1601,8 @@ mod tests {
             }),
         )?;
 
-        for (idx, item_uuid) in [a.as_str(), b.as_str(), c.as_str(), d.as_str()]
-            .into_iter()
-            .enumerate()
+        for (idx, item_uuid) in
+            [a.as_str(), b.as_str(), c.as_str(), d.as_str()].into_iter().enumerate()
         {
             insert_test_intent(
                 &conn,
@@ -1574,9 +1617,8 @@ mod tests {
             )?;
         }
 
-        for (idx, item_uuid) in [b.as_str(), a.as_str(), d.as_str(), c.as_str()]
-            .into_iter()
-            .enumerate()
+        for (idx, item_uuid) in
+            [b.as_str(), a.as_str(), d.as_str(), c.as_str()].into_iter().enumerate()
         {
             insert_test_intent(
                 &conn,
@@ -1591,7 +1633,8 @@ mod tests {
             )?;
         }
 
-        compact_list_unconditional(&conn, list_id).map_err(|e| test_error(e.message))?;
+        compact_list_unconditional(&conn, list_id)
+            .map_err(|e| test_error(e.message))?;
 
         let snapshot = read_snapshot_json(&conn, list_id)?;
         let order = snapshot
@@ -1602,17 +1645,11 @@ mod tests {
         let compacted_order: Vec<String> = order
             .iter()
             .filter_map(|entry| {
-                entry
-                    .get("item_uuid")
-                    .and_then(|v| v.as_str())
-                    .map(ToOwned::to_owned)
+                entry.get("item_uuid").and_then(|v| v.as_str()).map(ToOwned::to_owned)
             })
             .collect();
 
-        assert_eq!(
-            compacted_order,
-            vec![b.clone(), a.clone(), d.clone(), c.clone()]
-        );
+        assert_eq!(compacted_order, vec![b.clone(), a.clone(), d.clone(), c.clone()]);
         assert_eq!(order.len(), 4);
 
         let remaining_intents: usize = conn.query_row(
@@ -1642,7 +1679,8 @@ mod tests {
             serde_json::json!({ "item_uuid": a, "name": "a" }),
         )?;
 
-        compact_list_unconditional(&conn, list_id).map_err(|e| test_error(e.message))?;
+        compact_list_unconditional(&conn, list_id)
+            .map_err(|e| test_error(e.message))?;
 
         insert_test_intent(
             &conn,
@@ -1659,7 +1697,8 @@ mod tests {
             serde_json::json!({ "item_uuid": b, "name": "b" }),
         )?;
 
-        compact_list_unconditional(&conn, list_id).map_err(|e| test_error(e.message))?;
+        compact_list_unconditional(&conn, list_id)
+            .map_err(|e| test_error(e.message))?;
 
         let snapshot = read_snapshot_json(&conn, list_id)?;
         let items = snapshot
@@ -1726,7 +1765,8 @@ mod tests {
             serde_json::json!({ "item_uuid": b, "name": "b" }),
         )?;
 
-        compact_list_unconditional(&conn, list_id).map_err(|e| test_error(e.message))?;
+        compact_list_unconditional(&conn, list_id)
+            .map_err(|e| test_error(e.message))?;
 
         let snapshot = read_snapshot_json(&conn, list_id)?;
         let items = snapshot
@@ -1759,9 +1799,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         let mut stmt = conn.prepare(
             "SELECT DISTINCT list_id FROM intent UNION SELECT DISTINCT list_id FROM snapshot",
         )?;
-        let list_ids: Vec<String> = stmt
-            .query_map([], |row| row.get(0))?
-            .collect::<Result<Vec<_>, _>>()?;
+        let list_ids: Vec<String> =
+            stmt.query_map([], |row| row.get(0))?.collect::<Result<Vec<_>, _>>()?;
         for list_id in &list_ids {
             match compact_list_unconditional(&conn, list_id) {
                 Ok(()) => println!("compacted list {list_id}"),
@@ -1774,10 +1813,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let public_url = std::env::var("QS3K_PUBLIC_URL").ok();
 
-    let state = AppState {
-        db: Arc::new(Mutex::new(conn)),
-        public_url,
-    };
+    let state = AppState { db: Arc::new(Mutex::new(conn)), public_url };
 
     let server = Server::http("127.0.0.1:50484").map_err(|e| format!("{e}"))?;
     println!("qs3k-api server running on http://127.0.0.1:50484");
