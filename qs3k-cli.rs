@@ -294,12 +294,12 @@ impl ListState {
         self.states.get(uuid).map(|s| s.as_str()).unwrap_or("ACTIVATED")
     }
 
-    /// Find an existing item by folded name. Returns (uuid, current_state).
-    fn find_by_name(&self, needle: &str) -> Option<(String, &str)> {
+    /// Find an existing item by folded name. Returns (uuid, canonical_name, current_state).
+    fn find_by_name(&self, needle: &str) -> Option<(String, &str, &str)> {
         let needle_folded = fold(needle);
         for (uuid, name) in &self.items {
             if fold(name) == needle_folded {
-                return Some((uuid.clone(), self.state_of(uuid)));
+                return Some((uuid.clone(), name.as_str(), self.state_of(uuid)));
             }
         }
         None
@@ -847,10 +847,10 @@ fn cmd_done(
             None => {
                 actions.push((name.clone(), "not found"));
             }
-            Some((_uuid, "DEACTIVATED")) => {
-                actions.push((name.clone(), "already done"));
+            Some((_uuid, canonical_name, "DEACTIVATED")) => {
+                actions.push((canonical_name.to_string(), "already done"));
             }
-            Some((uuid, current_state)) => {
+            Some((uuid, canonical_name, current_state)) => {
                 intents.push((
                     "set_item_state",
                     serde_json::json!({
@@ -859,7 +859,7 @@ fn cmd_done(
                         "previous_state": current_state,
                     }),
                 ));
-                actions.push((name.clone(), "done"));
+                actions.push((canonical_name.to_string(), "done"));
             }
         }
     }
@@ -923,20 +923,19 @@ fn cmd_add(
 
     for name in item_names {
         match state.find_by_name(name) {
-            Some((_uuid, current_state)) if current_state == "ACTIVATED" => {
-                actions.push((name.clone(), "already active"));
+            Some((_uuid, canonical_name, current_state)) if current_state == "ACTIVATED" => {
+                actions.push((canonical_name.to_string(), "already active"));
             }
-            Some((uuid, _current_state)) => {
-                // Exists but not ACTIVATED — re-activate it
+            Some((uuid, canonical_name, current_state)) => {
                 intents.push((
                     "set_item_state",
                     serde_json::json!({
                         "item_uuid": uuid,
                         "state": "ACTIVATED",
-                        "previous_state": _current_state,
+                        "previous_state": current_state,
                     }),
                 ));
-                actions.push((name.clone(), "activate"));
+                actions.push((canonical_name.to_string(), "activate"));
             }
             None => {
                 let item_uuid = generate_ulid();
