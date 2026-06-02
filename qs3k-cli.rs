@@ -2,9 +2,10 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fmt, fs,
+    io::Write,
     path::PathBuf,
     process,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use unicode_normalization::UnicodeNormalization;
 
@@ -555,15 +556,73 @@ fn cmd_search(
 /// Internal verb used by shell completion scripts.
 /// Usage: qs3k [--server X] [--list Y] --complete <verb> <prefix>
 /// Prints one candidate per line, prefixed with state symbol.
+const COMPLETE_CACHE_TTL: Duration = Duration::from_secs(60);
+
+fn complete_cache_path(server_url: &str, list_id: &str) -> PathBuf {
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in format!("{server_url}\0{list_id}").bytes() {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    PathBuf::from(format!("/tmp/qs3k-complete-{h:x}"))
+}
+
 fn cmd_complete(
     args: &[String],
     server_override: Option<String>,
     list_override: Option<String>,
 ) -> Result<(), CliError> {
-    // args: [verb, prefix]  (prefix may be absent)
     let prefix = args.get(1).map(|s| s.as_str()).unwrap_or("");
-    // For now all verbs complete against all items; callers can filter by symbol if desired.
-    cmd_search(&[prefix.to_string()], server_override, list_override)
+    let cfg = load_config();
+
+    let server_url = server_override
+        .or_else(|| cfg.server_url.clone())
+        .ok_or_else(|| CliError::Fatal("no server URL configured".into()))?;
+    let list_id = list_override
+        .or_else(|| cfg.default_list_id.clone())
+        .ok_or_else(|| CliError::Fatal("no list specified".into()))?;
+
+    let cache_path = complete_cache_path(&server_url, &list_id);
+    let cached = fs::metadata(&cache_path)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|mtime| SystemTime::now().duration_since(mtime).ok())
+        .is_some_and(|age| age < COMPLETE_CACHE_TTL)
+        .then(|| fs::read_to_string(&cache_path).ok())
+        .flatten();
+
+    let output = match cached {
+        Some(data) => data,
+        None => {
+            let state = fetch_list_state(&server_url, &list_id)
+                .map_err(|e| CliError::Fatal(format!("failed to fetch list: {e}")))?;
+            let mut lines: Vec<String> = state
+                .items
+                .iter()
+                .map(|(uuid, name)| {
+                    format!(
+                        "{} {name}",
+                        state_symbol(&state.state_of(uuid).to_string())
+                    )
+                })
+                .collect();
+            lines.sort_unstable_by(|a, b| fold(a).cmp(&fold(b)));
+            let data = lines.join("\n");
+            if let Ok(mut f) = fs::File::create(&cache_path) {
+                let _ = f.write_all(data.as_bytes());
+            }
+            data
+        }
+    };
+
+    let prefix_folded = fold(prefix);
+    for line in output.lines() {
+        let name = line.splitn(2, ' ').nth(1).unwrap_or("");
+        if prefix_folded.is_empty() || fold(name).contains(&prefix_folded) {
+            println!("{line}");
+        }
+    }
+    Ok(())
 }
 
 fn cmd_completions(args: &[String]) -> Result<(), CliError> {
@@ -669,7 +728,7 @@ _qs3k() {
             ;;
     esac
 }
-_qs3k
+compdef _qs3k qs3k
 "#
 }
 
