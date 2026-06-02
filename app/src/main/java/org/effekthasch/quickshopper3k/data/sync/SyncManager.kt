@@ -9,7 +9,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
-import org.json.JSONObject
 import org.effekthasch.quickshopper3k.data.local.AppDatabase
 import org.effekthasch.quickshopper3k.data.local.SyncStateEntity
 
@@ -137,7 +136,7 @@ class SyncManager(
 
         client.getIntents(listId, sinceUlid).onSuccess { httpResult ->
             SyncStats.recordPollOverhead(httpResult.bytesReceived)
-            val array = JSONArray(httpResult.body)
+            val array = parseIntentsResponse(httpResult.body)
             var latestUlid = sinceUlid
             for (i in 0 until array.length()) {
                 val json = array.getJSONObject(i)
@@ -166,7 +165,7 @@ class SyncManager(
             return
         }
 
-        val remoteArray = JSONArray(remoteResult.body)
+        val remoteArray = parseIntentsResponse(remoteResult.body)
         if (remoteArray.length() > 0) {
             applyRemoteIntents(remoteArray, deviceId)
         } else {
@@ -232,6 +231,17 @@ class SyncManager(
             val itemUuid = itemUuidById[order.itemId] ?: continue
             emitter.emit(SyncIntent.SetItemOrder(storeUuid, itemUuid, order.sortOrder))
         }
+    }
+
+    private suspend fun parseIntentsResponse(body: String): JSONArray {
+        val snapshotApplier = SnapshotApplier(database.itemDao(), database.storeDao(), syncDao)
+        val (intents, snapshotUlid) = snapshotApplier.parseResponse(body)
+        if (snapshotUlid != null) {
+            val current = syncDao.getSyncState(KEY_LAST_SYNCED_ULID)
+            if (current == null || current < snapshotUlid)
+                syncDao.setSyncState(SyncStateEntity(KEY_LAST_SYNCED_ULID, snapshotUlid))
+        }
+        return intents
     }
 
     companion object {
