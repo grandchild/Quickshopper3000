@@ -400,6 +400,7 @@ fn usage() -> &'static str {
   qs3k completions zsh
   qs3k config set-server <URL>
   qs3k config set-list <LIST_ID>
+  qs3k config link <LINK>
   qs3k config show
 
 add: activates the item if it already exists (by name), creates it otherwise.
@@ -459,6 +460,23 @@ fn run() -> Result<(), CliError> {
     }
 }
 
+fn parse_share_link(link: &str) -> Option<(String, String)> {
+    let (scheme, rest) = if let Some(r) = link.strip_prefix("qs3ks://") {
+        ("https", r)
+    } else if let Some(r) = link.strip_prefix("qs3k://") {
+        ("http", r)
+    } else {
+        return None;
+    };
+    let slash = rest.rfind('/')?;
+    let host_path = &rest[..slash];
+    let list_id = rest[slash + 1..].to_string();
+    if list_id.is_empty() {
+        return None;
+    }
+    Some((format!("{scheme}://{host_path}"), list_id))
+}
+
 fn cmd_config(args: &[String]) -> Result<(), CliError> {
     let mut cfg = load_config();
     match args {
@@ -487,9 +505,19 @@ fn cmd_config(args: &[String]) -> Result<(), CliError> {
                 cfg.device_id.as_deref().unwrap_or("(not generated yet)")
             );
         }
+        [cmd, link] if cmd == "link" => {
+            let (server_url, list_id) = parse_share_link(link).ok_or_else(|| {
+                CliError::Usage(format!("invalid share link '{link}'; expected qs3k[s]://host/.../<LIST_ID>"))
+            })?;
+            cfg.server_url = Some(server_url.clone());
+            cfg.default_list_id = Some(list_id.clone());
+            save_config(&cfg);
+            println!("server_url set to {server_url}");
+            println!("default_list_id set to {list_id}");
+        }
         _ => {
             return Err(CliError::Usage(
-                "Usage:\n  qs3k config set-server <URL>\n  qs3k config set-list <LIST_ID>\n  qs3k config show".into(),
+                "Usage:\n  qs3k config set-server <URL>\n  qs3k config set-list <LIST_ID>\n  qs3k config link <LINK>\n  qs3k config show".into(),
             ));
         }
     }
