@@ -34,7 +34,8 @@
     <string name="context_menu_unavailable">Unavailable in store</string>
     <string name="context_menu_available">Available in store</string>
     <string name="context_menu_amount">Amount</string>
-
+    <string name="set_item_amount_title">Set Amount</string>
+    <string name="error_invalid_amount">Amount must be at least 1</string>
 
     <string name="import_items_title">Import Items</string>
     <string name="import_items_hint">Paste items here (one per line)</string>

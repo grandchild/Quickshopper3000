@@ -27,10 +27,12 @@ import org.effekthasch.quickshopper3k.data.repository.ShoppingRepository
 import org.effekthasch.quickshopper3k.databinding.DialogAddItemBinding
 import org.effekthasch.quickshopper3k.databinding.DialogItemContextMenuBinding
 import org.effekthasch.quickshopper3k.databinding.DialogImportItemsBinding
+import org.effekthasch.quickshopper3k.databinding.DialogSetItemAmountBinding
 import org.effekthasch.quickshopper3k.databinding.FragmentMainBinding
 import org.effekthasch.quickshopper3k.domain.model.ItemState
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
 import org.effekthasch.quickshopper3k.ui.FabController
+import org.effekthasch.quickshopper3k.ui.common.bindItemAmountBadge
 import org.effekthasch.quickshopper3k.util.DoneVisibilityMode
 import org.effekthasch.quickshopper3k.util.PreferencesManager
 
@@ -58,11 +60,7 @@ class MainFragment :
             false
         },
         onItemLongClick = { storeItem, rawX, rawY ->
-            if (binding.searchContainer.visibility == View.VISIBLE) {
-                dismissSearch()
-            } else {
-                showItemContextMenu(storeItem, rawX, rawY)
-            }
+            showItemContextMenu(storeItem, rawX, rawY)
         },
         onStartDrag = { holder -> enableDragOn(holder) }
     )
@@ -500,14 +498,12 @@ class MainFragment :
         var currentAmount = storeItem.item.amount
 
         fun updateAmountUi() {
-            if (currentAmount > 1) {
-                menuBinding.contextMenuAmountMinus.visibility = View.VISIBLE
-                menuBinding.contextMenuAmountValue.visibility = View.VISIBLE
-                menuBinding.contextMenuAmountValue.text = currentAmount.toString()
+            menuBinding.contextMenuAmountMinus.visibility = if (currentAmount > 1) {
+                View.VISIBLE
             } else {
-                menuBinding.contextMenuAmountMinus.visibility = View.INVISIBLE
-                menuBinding.contextMenuAmountValue.visibility = View.INVISIBLE
+                View.INVISIBLE
             }
+            menuBinding.contextMenuAmountValue.bindItemAmountBadge(currentAmount, hideWhenOne = false)
         }
 
         updateAmountUi()
@@ -547,6 +543,13 @@ class MainFragment :
             true
         )
         popup.elevation = 8f
+
+        menuBinding.contextMenuAmountValue.setOnClickListener {
+            showSetItemAmountDialog(storeItem, currentAmount) { amount ->
+                currentAmount = amount
+                updateAmountUi()
+            }
+        }
         popup.setBackgroundDrawable(
             android.graphics.drawable.ColorDrawable(
                 android.util.TypedValue().let { tv ->
@@ -617,6 +620,76 @@ class MainFragment :
             .show()
 
         dialogBinding.itemNameInput.requestFocus()
+    }
+
+    private fun showSetItemAmountDialog(
+        storeItem: StoreItem,
+        currentAmount: Int,
+        onAmountUpdated: (Int) -> Unit
+    ) {
+        val dialogBinding = DialogSetItemAmountBinding.inflate(layoutInflater)
+        dialogBinding.itemAmountInput.setText(currentAmount.toString())
+
+        fun parsedAmount(): Int? = dialogBinding.itemAmountInput.text
+            ?.toString()
+            ?.trim()
+            ?.toIntOrNull()
+
+        fun validate() {
+            val amount = parsedAmount()
+            dialogBinding.itemAmountInputLayout.error = if (amount == null || amount < 1) {
+                getString(R.string.error_invalid_amount)
+            } else {
+                null
+            }
+        }
+
+        val dialog = AlertDialog.Builder(requireContext())
+            .setTitle(R.string.set_item_amount_title)
+            .setView(dialogBinding.root)
+            .setPositiveButton(R.string.save, null)
+            .setNegativeButton(R.string.cancel, null)
+            .create()
+
+        dialog.setOnShowListener {
+            val saveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+
+            fun updateSaveEnabled() {
+                val amount = parsedAmount()
+                saveButton.isEnabled = amount != null && amount >= 1
+            }
+
+            validate()
+            updateSaveEnabled()
+
+            dialogBinding.itemAmountInput.addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                override fun afterTextChanged(s: android.text.Editable?) {
+                    validate()
+                    updateSaveEnabled()
+                }
+            })
+
+            saveButton.setOnClickListener {
+                val amount = parsedAmount() ?: return@setOnClickListener
+                if (amount < 1) return@setOnClickListener
+
+                viewModel.updateItemAmount(storeItem.item.id, amount) { result ->
+                    result.onSuccess {
+                        onAmountUpdated(amount)
+                        dialog.dismiss()
+                    }
+                    result.onFailure {
+                        Snackbar.make(binding.root, R.string.error_occurred, Snackbar.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+
+        dialog.show()
+        dialogBinding.itemAmountInput.requestFocus()
+        dialogBinding.itemAmountInput.selectAll()
     }
 
     private fun showImportItemsDialog() {

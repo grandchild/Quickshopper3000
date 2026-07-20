@@ -10,6 +10,7 @@ import org.effekthasch.quickshopper3k.databinding.ItemShoppingItemBinding
 import org.effekthasch.quickshopper3k.domain.model.ItemState
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
 import org.effekthasch.quickshopper3k.ui.common.BaseDragAdapter
+import org.effekthasch.quickshopper3k.ui.common.bindItemAmountBadge
 
 class MainItemsAdapter(
     private val onItemClick: () -> Boolean,
@@ -181,12 +182,7 @@ class MainItemsAdapter(
         fun bind(storeItem: StoreItem, position: Int) {
             binding.itemNameText.text = storeItem.item.name
 
-            if (storeItem.item.amount > 1) {
-                binding.itemAmountText.text = storeItem.item.amount.toString()
-                binding.itemAmountText.visibility = View.VISIBLE
-            } else {
-                binding.itemAmountText.visibility = View.GONE
-            }
+            binding.itemAmountText.bindItemAmountBadge(storeItem.item.amount)
 
             when (storeItem.item.state) {
                 ItemState.ACTIVATED -> {
