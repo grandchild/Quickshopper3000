@@ -100,8 +100,8 @@ Server is a black box. Assumed endpoints:
 ### `POST /list/{list_uuid}/intents`
 Push one or more intents. Body is a JSON array of intent objects. Server stores them and makes them available to other devices.
 
-### `GET /list/{list_uuid}/intents?since={ulid}`
-Pull intents newer than the given ULID. Returns JSON array of intent objects in **strict `server_ulid` order**. The client relies on this guarantee to apply intents incrementally without per-field LWW tracking — every incoming intent is newer than anything previously seen. If `since` is omitted or the server has compacted past that point, returns a snapshot + subsequent intents.
+### `GET /list/{list_uuid}/intents?since={ulid}&device_id={device_id}`
+Pull intents newer than the given ULID. `device_id` identifies the client and `since` acknowledges the latest server ULID it has already applied. Returns JSON array of intent objects in **strict `server_ulid` order**. The client relies on this guarantee to apply intents incrementally without per-field LWW tracking — every incoming intent is newer than anything previously seen. If `since` is omitted or the server has compacted past that point, returns a snapshot + subsequent intents.
 
 ### `GET /list/{list_uuid}/snapshot`
 Returns the latest compacted snapshot (full state) plus the ULID of the snapshot. Client can then poll intents from that ULID forward.
@@ -128,9 +128,9 @@ Returns the full intent queue for the list: all retained intents (post-compactio
 
 1. User action → create intent → apply locally → enqueue for sync.
 2. On sync tick (polling interval, e.g. 5s when app is foreground):
-   - Push queued intents to server.
-   - Pull intents since last known ULID.
+   - Pull intents since the last applied ULID, acknowledging that cursor to the server.
    - Apply remote intents locally in ULID order, skipping own intents (already applied).
+   - Push queued local intents to the server.
 3. On app open after being backgrounded: immediate sync.
 4. On first link to a list UUID: pull snapshot + all intents, rebuild local state from scratch.
 
