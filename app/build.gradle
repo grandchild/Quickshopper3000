@@ -3,6 +3,8 @@ plugins {
     id 'com.google.devtools.ksp'
 }
 
+def versionBase = "1.0"
+
 def versionFile = rootProject.file('version.properties')
 def versionProps = new Properties()
 if (versionFile.exists()) versionProps.load(versionFile.newDataInputStream())
@@ -19,7 +21,7 @@ android {
         minSdk 26
         targetSdk 36
         versionCode buildNum
-        versionName "1.0-$buildNum"
+        versionName "$versionBase-$buildNum"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -38,6 +40,14 @@ android {
 
     buildFeatures {
         viewBinding = true
+    }
+}
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.outputs.each {
+            it.outputFileName.set("qs3k-v$versionBase-$buildNum-${variant.buildType}-unsigned.apk")
+        }
     }
 }
 
