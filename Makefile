@@ -1,4 +1,4 @@
-.PHONY: all app api cli
+.PHONY: all app api cli debug
 all: app api cli
 
 app:
@@ -6,3 +6,6 @@ app:
 
 api cli:
 	cargo build --release
+
+debug:
+	./gradlew installDebug && adb shell am force-stop org.effekthasch.quickshopper3k && adb shell am start -n org.effekthasch.quickshopper3k/.MainActivity
