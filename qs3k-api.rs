@@ -77,6 +77,10 @@ struct MaterializedSnapshot {
 struct SnapshotItem {
     item_uuid: String,
     name: String,
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    synonyms: String,
     state: String,
     amount: i64,
     created_at: u64,
@@ -105,6 +109,8 @@ struct SnapshotItemOrder {
 
 struct MaterializedItem {
     name: String,
+    description: String,
+    synonyms: String,
     state: String,
     amount: i64,
     created_at: u64,
@@ -129,7 +135,10 @@ const DB_VERSION: i32 = 1;
 
 const MAX_TOTAL_INTENTS: usize = 10_000;
 const MAX_ITEM_NAME_LEN: usize = 1000;
+const MAX_ITEM_DESCRIPTION_LEN: usize = 1000;
+const MAX_ITEM_SYNONYMS_LEN: usize = 1000;
 const MAX_STORE_NAME_LEN: usize = 1000;
+const ITEM_METADATA_SYNC_PROTOCOL: u32 = 1;
 const MAX_AMOUNT: i64 = 1_000_000;
 
 const COMPACTION_BACKLOG_THRESHOLD: usize = 10;
@@ -417,6 +426,30 @@ fn parse_query_params(query: &str) -> HashMap<String, String> {
         .collect()
 }
 
+fn sync_protocol(query_params: &HashMap<String, String>) -> u32 {
+    query_params.get("sync_protocol").and_then(|value| value.parse().ok()).unwrap_or(0)
+}
+
+fn intents_for_sync_protocol(mut intents: Vec<Intent>, protocol: u32) -> Vec<Intent> {
+    if protocol >= ITEM_METADATA_SYNC_PROTOCOL {
+        return intents;
+    }
+
+    for intent in &mut intents {
+        if matches!(
+            intent.intent_type.as_str(),
+            "set_item_description" | "set_item_synonyms"
+        ) {
+            intent.intent_type = "bulk_set_state".to_owned();
+            intent.payload = serde_json::json!({
+                "item_uuids": [],
+                "state": "ACTIVATED"
+            });
+        }
+    }
+    intents
+}
+
 fn track_device_sync(
     conn: &Connection,
     list_id: &str,
@@ -534,6 +567,22 @@ fn payload_str<'a>(
             "Cannot compact malformed {intent_type}: missing string '{key}'"
         ),
     })
+}
+
+fn payload_str_or_empty<'a>(
+    payload: &'a serde_json::Value,
+    key: &str,
+    intent_type: &str,
+) -> ApiResult<&'a str> {
+    match payload.get(key) {
+        None | Some(serde_json::Value::Null) => Ok(""),
+        Some(value) => value.as_str().ok_or_else(|| ErrorInfo {
+            status: 500,
+            message: format!(
+                "Cannot compact malformed {intent_type}: '{key}' must be a string"
+            ),
+        }),
+    }
 }
 
 fn payload_bool(
@@ -660,6 +709,10 @@ impl MaterializedState {
             "add_item" => {
                 let item_uuid = payload_str(&intent.payload, "item_uuid", "add_item")?;
                 let name = payload_str(&intent.payload, "name", "add_item")?;
+                let description =
+                    payload_str_or_empty(&intent.payload, "description", "add_item")?;
+                let synonyms =
+                    payload_str_or_empty(&intent.payload, "synonyms", "add_item")?;
                 if self.deleted_items.contains(item_uuid)
                     || self.items.contains_key(item_uuid)
                 {
@@ -670,6 +723,8 @@ impl MaterializedState {
                     item_uuid.to_owned(),
                     MaterializedItem {
                         name: name.to_owned(),
+                        description: description.to_owned(),
+                        synonyms: synonyms.to_owned(),
                         state: "ACTIVATED".to_owned(),
                         amount: 1,
                         created_at,
@@ -687,6 +742,27 @@ impl MaterializedState {
                 let name = payload_str(&intent.payload, "name", "rename_item")?;
                 if let Some(item) = self.items.get_mut(item_uuid) {
                     item.name = name.to_owned();
+                }
+            }
+            "set_item_description" => {
+                let item_uuid =
+                    payload_str(&intent.payload, "item_uuid", "set_item_description")?;
+                let description = payload_str(
+                    &intent.payload,
+                    "description",
+                    "set_item_description",
+                )?;
+                if let Some(item) = self.items.get_mut(item_uuid) {
+                    item.description = description.to_owned();
+                }
+            }
+            "set_item_synonyms" => {
+                let item_uuid =
+                    payload_str(&intent.payload, "item_uuid", "set_item_synonyms")?;
+                let synonyms =
+                    payload_str(&intent.payload, "synonyms", "set_item_synonyms")?;
+                if let Some(item) = self.items.get_mut(item_uuid) {
+                    item.synonyms = synonyms.to_owned();
                 }
             }
             "set_item_state" => {
@@ -773,6 +849,10 @@ impl MaterializedState {
                 for item in payload_array(&intent.payload, "items", "bulk_add_items")? {
                     let item_uuid = payload_str(item, "item_uuid", "bulk_add_items")?;
                     let name = payload_str(item, "name", "bulk_add_items")?;
+                    let description =
+                        payload_str_or_empty(item, "description", "bulk_add_items")?;
+                    let synonyms =
+                        payload_str_or_empty(item, "synonyms", "bulk_add_items")?;
                     if self.deleted_items.contains(item_uuid)
                         || self.items.contains_key(item_uuid)
                     {
@@ -783,6 +863,8 @@ impl MaterializedState {
                         item_uuid.to_owned(),
                         MaterializedItem {
                             name: name.to_owned(),
+                            description: description.to_owned(),
+                            synonyms: synonyms.to_owned(),
                             state: "ACTIVATED".to_owned(),
                             amount: 1,
                             created_at,
@@ -835,6 +917,8 @@ impl MaterializedState {
                         item.item_uuid,
                         MaterializedItem {
                             name: item.name,
+                            description: item.description,
+                            synonyms: item.synonyms,
                             state: item.state,
                             amount: item.amount,
                             created_at: item.created_at,
@@ -898,6 +982,8 @@ impl MaterializedState {
             .map(|(item_uuid, item)| SnapshotItem {
                 item_uuid: item_uuid.clone(),
                 name: item.name.clone(),
+                description: item.description.clone(),
+                synonyms: item.synonyms.clone(),
                 state: item.state.clone(),
                 amount: item.amount,
                 created_at: item.created_at,
@@ -1192,6 +1278,23 @@ fn get_snapshot(
     }
 }
 
+fn validate_text_length(
+    payload: &serde_json::Value,
+    key: &str,
+    max: usize,
+    label: &str,
+) -> ApiResult<()> {
+    if let Some(value) = payload.get(key).and_then(|value| value.as_str()) {
+        if value.chars().count() > max {
+            return Err(ErrorInfo {
+                status: 400,
+                message: format!("{label} too long (max {max})"),
+            });
+        }
+    }
+    Ok(())
+}
+
 #[allow(clippy::too_many_lines)]
 fn route_request(
     method: Method,
@@ -1246,21 +1349,44 @@ fn route_request(
                 }
 
                 match intent.intent_type.as_str() {
-                    "add_item" | "rename_item" => {
-                        if let Some(name) =
-                            intent.payload.get("name").and_then(|v| v.as_str())
-                        {
-                            if name.chars().count() > MAX_ITEM_NAME_LEN {
-                                return Err(ErrorInfo {
-                                    status: 400,
-                                    message: format!(
-                                        "Item name too long (max {})",
-                                        MAX_ITEM_NAME_LEN
-                                    ),
-                                });
-                            }
-                        }
+                    "add_item" => {
+                        validate_text_length(
+                            &intent.payload,
+                            "name",
+                            MAX_ITEM_NAME_LEN,
+                            "Item name",
+                        )?;
+                        validate_text_length(
+                            &intent.payload,
+                            "description",
+                            MAX_ITEM_DESCRIPTION_LEN,
+                            "Item description",
+                        )?;
+                        validate_text_length(
+                            &intent.payload,
+                            "synonyms",
+                            MAX_ITEM_SYNONYMS_LEN,
+                            "Item synonyms",
+                        )?;
                     }
+                    "rename_item" => validate_text_length(
+                        &intent.payload,
+                        "name",
+                        MAX_ITEM_NAME_LEN,
+                        "Item name",
+                    )?,
+                    "set_item_description" => validate_text_length(
+                        &intent.payload,
+                        "description",
+                        MAX_ITEM_DESCRIPTION_LEN,
+                        "Item description",
+                    )?,
+                    "set_item_synonyms" => validate_text_length(
+                        &intent.payload,
+                        "synonyms",
+                        MAX_ITEM_SYNONYMS_LEN,
+                        "Item synonyms",
+                    )?,
                     "set_item_amount" => {
                         if let Some(amount) =
                             intent.payload.get("amount").and_then(|v| v.as_i64())
@@ -1276,39 +1402,35 @@ fn route_request(
                             }
                         }
                     }
-                    "add_store" | "update_store" => {
-                        if let Some(name) =
-                            intent.payload.get("name").and_then(|v| v.as_str())
-                        {
-                            if name.chars().count() > MAX_STORE_NAME_LEN {
-                                return Err(ErrorInfo {
-                                    status: 400,
-                                    message: format!(
-                                        "Store name too long (max {})",
-                                        MAX_STORE_NAME_LEN
-                                    ),
-                                });
-                            }
-                        }
-                    }
+                    "add_store" | "update_store" => validate_text_length(
+                        &intent.payload,
+                        "name",
+                        MAX_STORE_NAME_LEN,
+                        "Store name",
+                    )?,
                     "bulk_add_items" => {
                         if let Some(items) =
                             intent.payload.get("items").and_then(|v| v.as_array())
                         {
                             for item in items {
-                                if let Some(name) =
-                                    item.get("name").and_then(|v| v.as_str())
-                                {
-                                    if name.chars().count() > MAX_ITEM_NAME_LEN {
-                                        return Err(ErrorInfo {
-                                            status: 400,
-                                            message: format!(
-                                                "Item name too long in bulk_add_items (max {})",
-                                                MAX_ITEM_NAME_LEN
-                                            ),
-                                        });
-                                    }
-                                }
+                                validate_text_length(
+                                    item,
+                                    "name",
+                                    MAX_ITEM_NAME_LEN,
+                                    "Item name in bulk_add_items",
+                                )?;
+                                validate_text_length(
+                                    item,
+                                    "description",
+                                    MAX_ITEM_DESCRIPTION_LEN,
+                                    "Item description in bulk_add_items",
+                                )?;
+                                validate_text_length(
+                                    item,
+                                    "synonyms",
+                                    MAX_ITEM_SYNONYMS_LEN,
+                                    "Item synonyms in bulk_add_items",
+                                )?;
                             }
                         }
                     }
@@ -1353,6 +1475,7 @@ fn route_request(
 
         (Method::Get, ["list", list_uuid, "intents"]) => {
             let conn = lock_db(state)?;
+            let protocol = sync_protocol(query_params);
             maybe_compact_list(&conn, list_uuid)?;
 
             let (snapshot_ulid, snapshot) = get_snapshot(&conn, list_uuid)?;
@@ -1373,7 +1496,7 @@ fn route_request(
                         return json_response(&SnapshotResponse {
                             snapshot_ulid,
                             snapshot,
-                            intents: subsequent,
+                            intents: intents_for_sync_protocol(subsequent, protocol),
                         });
                     }
                 }
@@ -1391,7 +1514,7 @@ fn route_request(
                     return json_response(&SnapshotResponse {
                         snapshot_ulid,
                         snapshot,
-                        intents: subsequent,
+                        intents: intents_for_sync_protocol(subsequent, protocol),
                     });
                 }
                 load_all_intents(&conn, list_uuid)?
@@ -1412,16 +1535,21 @@ fn route_request(
                     query_params.get("since").map(String::as_str),
                 )?;
             }
-            json_response(&intents)
+            json_response(&intents_for_sync_protocol(intents, protocol))
         }
 
         (Method::Get, ["list", list_uuid, "snapshot"]) => {
             let conn = lock_db(state)?;
+            let protocol = sync_protocol(query_params);
             let (snapshot_ulid, snapshot) = get_snapshot(&conn, list_uuid)?;
             let since = snapshot_ulid.as_deref().unwrap_or("");
             let intents = load_intents_since(&conn, list_uuid, since)?;
 
-            json_response(&SnapshotResponse { snapshot_ulid, snapshot, intents })
+            json_response(&SnapshotResponse {
+                snapshot_ulid,
+                snapshot,
+                intents: intents_for_sync_protocol(intents, protocol),
+            })
         }
 
         (Method::Get, ["list", list_uuid, "debug"]) => {
@@ -1545,6 +1673,17 @@ mod tests {
         Box::new(std::io::Error::new(std::io::ErrorKind::Other, message))
     }
 
+    fn test_intent(intent_type: &str, payload: serde_json::Value) -> Intent {
+        Intent {
+            device_ulid: test_ulid(8_000_000),
+            server_ulid: Some(test_ulid(1)),
+            device_id: "test-device".to_owned(),
+            list_id: "test-list".to_owned(),
+            intent_type: intent_type.to_owned(),
+            payload,
+        }
+    }
+
     fn insert_test_intent(
         conn: &Connection,
         list_id: &str,
@@ -1608,6 +1747,78 @@ mod tests {
             |row| row.get(0),
         )?;
         assert_eq!(cursor, None);
+        Ok(())
+    }
+
+    #[test]
+    fn legacy_protocol_replaces_metadata_intents_with_no_ops() {
+        let old = intents_for_sync_protocol(
+            vec![test_intent(
+                "set_item_description",
+                serde_json::json!({ "item_uuid": "item", "description": "smoked" }),
+            )],
+            0,
+        );
+        assert_eq!(old[0].intent_type, "bulk_set_state");
+        assert_eq!(old[0].payload["item_uuids"], serde_json::json!([]));
+        assert_eq!(old[0].server_ulid.as_deref(), Some(test_ulid(1).as_str()));
+
+        let current = intents_for_sync_protocol(
+            vec![test_intent(
+                "set_item_synonyms",
+                serde_json::json!({ "item_uuid": "item", "synonyms": "bean curd" }),
+            )],
+            ITEM_METADATA_SYNC_PROTOCOL,
+        );
+        assert_eq!(current[0].intent_type, "set_item_synonyms");
+    }
+
+    #[test]
+    fn forced_compaction_keeps_item_metadata() -> TestResult {
+        let conn = Connection::open_in_memory()?;
+        create_tables(&conn)?;
+        migrate_db(&conn)?;
+
+        let list_id = "list-metadata";
+        let item_uuid = test_ulid(90);
+        insert_test_intent(
+            &conn,
+            list_id,
+            &test_ulid(1),
+            "add_item",
+            serde_json::json!({
+                "item_uuid": item_uuid.clone(),
+                "name": "Tofu",
+                "description": "plain",
+                "synonyms": "bean curd"
+            }),
+        )?;
+        insert_test_intent(
+            &conn,
+            list_id,
+            &test_ulid(2),
+            "set_item_description",
+            serde_json::json!({ "item_uuid": item_uuid.clone(), "description": "smoked" }),
+        )?;
+        insert_test_intent(
+            &conn,
+            list_id,
+            &test_ulid(3),
+            "set_item_synonyms",
+            serde_json::json!({ "item_uuid": item_uuid, "synonyms": "soy soya" }),
+        )?;
+
+        compact_list_unconditional(&conn, list_id)
+            .map_err(|error| test_error(error.message))?;
+        let snapshot = read_snapshot_json(&conn, list_id)?;
+        let item = snapshot["items"]
+            .as_array()
+            .and_then(|items| items.first())
+            .ok_or_else(|| test_error("snapshot item missing".into()))?;
+
+        assert_eq!(item["name"], "Tofu");
+        assert_eq!(item["description"], "smoked");
+        assert_eq!(item["synonyms"], "soy soya");
         Ok(())
     }
 
