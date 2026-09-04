@@ -469,8 +469,8 @@ private class DebugAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         fun bind(row: DebugRow.DeviceSeparator) {
             val deviceId = row.deviceId.takeLast(12)
             val suffix = if (row.isThis) "  (this)" else ""
-            val status = if (row.lastSyncedUlid == null) "not yet synced" else "synced through here"
-            label.text = "$deviceId$suffix  ·  $status"
+            val status = if (row.lastSyncedUlid == null) " · not yet synced" else ""
+            label.text = "$deviceId$suffix$status"
         }
     }
 }
