@@ -69,6 +69,19 @@ class ItemTextTest {
     }
 
     @Test
+    fun precompiledSearchMatchesConvenienceSearch() {
+        val tofu = item("Äpfel", description = "smoked tofu", synonyms = "bean curd, BÉAN")
+        val searchableText = ItemText.searchableText(tofu)
+
+        listOf("", "apf cur", "to\u2003sm", "bean,c", "plain").forEach { query ->
+            assertEquals(
+                ItemText.matches(tofu, query),
+                ItemText.matches(searchableText, ItemText.compileSearchTerms(query))
+            )
+        }
+    }
+
+    @Test
     fun formatsDescriptionForSharing() {
         assertEquals("Tofu", ItemText.formatForSharing(item("Tofu")))
         assertEquals("Tofu (smoked)", ItemText.formatForSharing(item("Tofu", "smoked")))

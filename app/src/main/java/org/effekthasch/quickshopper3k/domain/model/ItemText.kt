@@ -55,20 +55,31 @@ object ItemText {
         }
     }
 
-    fun matches(item: Item, query: String): Boolean {
-        val terms = query.trim()
-            .split(whitespace)
-            .filter { it.isNotEmpty() }
-            .map(::normalizeForSearch)
-        if (terms.isEmpty()) return true
+    class SearchableText internal constructor(
+        private val values: List<String>
+    ) {
+        internal fun matches(terms: List<String>): Boolean =
+            terms.all { term -> values.any { it.contains(term) } }
+    }
 
-        val values = buildList {
+    fun compileSearchTerms(query: String): List<String> = query.trim()
+        .split(whitespace)
+        .filter { it.isNotEmpty() }
+        .map(::normalizeForSearch)
+
+    fun searchableText(item: Item): SearchableText = SearchableText(
+        buildList {
             add(normalizeForSearch(item.name))
             add(normalizeForSearch(item.description))
             addAll(parseSynonyms(item.synonyms).map(::normalizeForSearch))
         }
-        return terms.all { term -> values.any { it.contains(term) } }
-    }
+    )
+
+    fun matches(searchableText: SearchableText, terms: List<String>): Boolean =
+        terms.isEmpty() || searchableText.matches(terms)
+
+    fun matches(item: Item, query: String): Boolean =
+        matches(searchableText(item), compileSearchTerms(query))
 
     fun parseImportLine(text: String): ItemInput? {
         val line = stripImportBullets(text)

@@ -42,6 +42,8 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
     private val _flushRecentlyDoneAt = MutableLiveData<Long?>(null)
     private val _isDragging = MutableLiveData(false)
     private var resetInFlight = false
+    private var cachedSearchItems: List<StoreItem>? = null
+    private var searchableTextByItemId = emptyMap<Long, ItemText.SearchableText>()
 
     val stores: LiveData<List<Store>> = repository.getAllStores().asLiveData()
 
@@ -53,6 +55,13 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         fun update() {
             val allItems = items.value ?: emptyList()
             val query = _searchQuery.value ?: ""
+            if (cachedSearchItems !== allItems) {
+                searchableTextByItemId = allItems.associate { storeItem ->
+                    storeItem.item.id to ItemText.searchableText(storeItem.item)
+                }
+                cachedSearchItems = allItems
+            }
+            val searchTerms = ItemText.compileSearchTerms(query)
             val visibilityMode = _doneVisibilityMode.value ?: DoneVisibilityMode.CURRENT
             val recentMinutes = _recentlyDoneMinutes.value ?: 60
             val flushAt = _flushRecentlyDoneAt.value
@@ -92,8 +101,11 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
             }
 
 
-            fun matchesSearch(storeItem: StoreItem): Boolean =
-                ItemText.matches(storeItem.item, query)
+            fun matchesSearch(storeItem: StoreItem): Boolean {
+                val searchableText = searchableTextByItemId[storeItem.item.id]
+                    ?: ItemText.searchableText(storeItem.item)
+                return ItemText.matches(searchableText, searchTerms)
+            }
 
             fun matchesVisibility(storeItem: StoreItem, mode: DoneVisibilityMode): Boolean = when {
                 isDragging -> true
