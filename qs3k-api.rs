@@ -1586,10 +1586,10 @@ fn route_request(
                 None => Err(ErrorInfo { status: 404, message: "Not found".into() }),
                 Some(base) => {
                     let base = base.trim_end_matches('/');
-                    let deep_link = if base.starts_with("https://") {
-                        format!("qs3ks://{}/{}", &base[8..], list_uuid)
-                    } else if base.starts_with("http://") {
-                        format!("qs3k://{}/{}", &base[7..], list_uuid)
+                    let deep_link = if let Some(host) = base.strip_prefix("https://") {
+                        format!("qs3ks://{host}/{list_uuid}")
+                    } else if let Some(host) = base.strip_prefix("http://") {
+                        format!("qs3k://{host}/{list_uuid}")
                     } else {
                         return Err(ErrorInfo {
                             status: 500,
@@ -1659,6 +1659,43 @@ fn handle_request(mut request: Request, state: &AppState) {
     }
 }
 
+fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
+    std::fs::create_dir_all("db")?;
+
+    let conn = Connection::open("db/qs3k-api.db")?;
+    init_db(&conn)?;
+    migrate_db(&conn)?;
+
+    if std::env::args().any(|a| a == "--compact") {
+        let mut stmt = conn.prepare(
+            "SELECT DISTINCT list_id FROM intent UNION SELECT DISTINCT list_id FROM snapshot",
+        )?;
+        let list_ids: Vec<String> =
+            stmt.query_map([], |row| row.get(0))?.collect::<Result<Vec<_>, _>>()?;
+        for list_id in &list_ids {
+            match compact_list_unconditional(&conn, list_id) {
+                Ok(()) => println!("compacted list {list_id}"),
+                Err(e) => eprintln!("error compacting list {list_id}: {}", e.message),
+            }
+        }
+        println!("compaction done, {} lists processed", list_ids.len());
+        return Ok(());
+    }
+
+    let public_url = std::env::var("QS3K_PUBLIC_URL").ok();
+
+    let state = AppState { db: Arc::new(Mutex::new(conn)), public_url };
+
+    let server = Server::http("127.0.0.1:50484").map_err(|e| format!("{e}"))?;
+    println!("qs3k-api server running on http://127.0.0.1:50484");
+
+    for request in server.incoming_requests() {
+        handle_request(request, &state);
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1670,7 +1707,7 @@ mod tests {
     }
 
     fn test_error(message: String) -> Box<dyn Error + Send + Sync> {
-        Box::new(std::io::Error::new(std::io::ErrorKind::Other, message))
+        Box::new(std::io::Error::other(message))
     }
 
     fn test_intent(intent_type: &str, payload: serde_json::Value) -> Intent {
@@ -2042,41 +2079,4 @@ mod tests {
         }));
         Ok(())
     }
-}
-
-fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-    std::fs::create_dir_all("db")?;
-
-    let conn = Connection::open("db/qs3k-api.db")?;
-    init_db(&conn)?;
-    migrate_db(&conn)?;
-
-    if std::env::args().any(|a| a == "--compact") {
-        let mut stmt = conn.prepare(
-            "SELECT DISTINCT list_id FROM intent UNION SELECT DISTINCT list_id FROM snapshot",
-        )?;
-        let list_ids: Vec<String> =
-            stmt.query_map([], |row| row.get(0))?.collect::<Result<Vec<_>, _>>()?;
-        for list_id in &list_ids {
-            match compact_list_unconditional(&conn, list_id) {
-                Ok(()) => println!("compacted list {list_id}"),
-                Err(e) => eprintln!("error compacting list {list_id}: {}", e.message),
-            }
-        }
-        println!("compaction done, {} lists processed", list_ids.len());
-        return Ok(());
-    }
-
-    let public_url = std::env::var("QS3K_PUBLIC_URL").ok();
-
-    let state = AppState { db: Arc::new(Mutex::new(conn)), public_url };
-
-    let server = Server::http("127.0.0.1:50484").map_err(|e| format!("{e}"))?;
-    println!("qs3k-api server running on http://127.0.0.1:50484");
-
-    for request in server.incoming_requests() {
-        handle_request(request, &state);
-    }
-
-    Ok(())
 }
