@@ -13,71 +13,75 @@
     - items are deactivated when they have been bought or aren't needed anymore
     - items are postponed (mostly during a grocery trip) if they are still needed,
       but not available currently
+    - items can carry an amount (default 1); the amount resets to 1 once an item
+      has been done for long enough
 - dynamically sorted by order in store (i.e. custom sorting)
 - dynamically filtered by availability in store
 - stores:
     - stores are named (ordering + filter) settings
-    - with a given shopping list, and one or more stores, the list becomes
-      store-specific (i.e. ordered and filtered per store)
+    - the list is shown for one active store at a time (ordered & filtered for it)
     - by default all items are available in every store, i.e. they are only marked as unavailable
-    - initially there are no shops, but there's a "null" default shop, that's not visible but has an ordering
-      and no filtering (i.e. all items are available)
-    - stores can be marked as "specialty stores" where existing and new items are default-unavailable.
-- two modes: main list, edit store
-    - main list (formerly plan+shop combined):
+    - a default "All items" store (id 0) always exists: it has an ordering, no filtering,
+      and is selectable from the store picker
+    - stores can be marked as "specialty stores" where the items that exist at creation
+      time are marked unavailable. (Items added later still default to available.)
+- two modes: main list, store
+    - main list:
         - add/activate/deactivate/postpone/edit/delete items
+        - set item amount
         - toggle done items visibility (shopping use case)
         - switching stores seamlessly re-orders & re-filters the list
         - search bar with integrated add functionality
-    - store: order & filter items in the global shopping list according
-      to placement and availability in the currently active store
+        - bulk actions: activate all, deactivate all, activate postponed
+        - import items (bulk add from text, with an "add known only" option)
+        - share active items as text
+    - store: order & filter items (per-store drag reorder, availability toggle,
+      add/rename/delete store)
 - state transitions by mode (L/R - swipe left/swipe right on the item):
     - main list (new items are default activated):
         - postpone <-L- activated -R-> deactivate
         - postpone <-L- deactivated -R-> activate
         - deactivate <-L- postponed -R-> activate
-        - deactivated items ("Done") visibility is controlled by tristate toggle in BottomAppBar:
-            - none: hide all done items
-            - current: show done items from last X minutes (X = configurable, default 60)
+        - done items ("Done") visibility is a two-state toggle in the BottomAppBar:
+            - current: show items done within the last X minutes (X = configurable, default 60)
             - all: show all done items
-        - tristate button cycles through modes on tap (none → current → all → none)
-        - "flush recently done" menu action: sets a cutoff timestamp to now, hiding all
-          previously done items in "recent" mode. The flush timestamp supersedes the
-          X minutes threshold only while it's more recent; after X minutes pass, it
-          becomes irrelevant and the normal X-minute window applies again.
+            - the button cycles current <-> all on tap (text label, no icon)
+        - "flush recently done" menu action: sets a cutoff to now, hiding all previously
+          done items in "current" mode. The cutoff supersedes the X-minute window only
+          while it is more recent; after X minutes it becomes irrelevant again.
     - store (new items are default available):
-        - unavailable <-L- available -R-> unavailable
-        - available <-L- unavailable -R-> available
+        - a swipe in either direction toggles available <-> unavailable
+- in the store list, items are multi-selectable (tap / long-press) and can be
+  dragged as a block, so several items can be reordered at once
 - FAB per mode:
-    - main list: search (magnifier icon)
-        - FAB expands into search bar (above BottomAppBar, as before)
+    - main list: search (magnifier-with-plus icon)
+        - the FAB toggles a search bar above the BottomAppBar
         - search-as-you-type filters the list
-        - small "+" button appears on right end of search bar when:
-            - search term has no exact match in list
-        - when search yields no results:
-            - keyboard action button becomes checkmark/enter to add item
-            - the "+" button is more prominent
-        - tapping "+" or keyboard action adds search term as new item
+        - a "+" button appears on the right end of the search bar when the
+          search term has no exact match in the list
+        - when the search yields no results, the keyboard action button becomes
+          a checkmark/enter to add the item
+        - tapping "+" or the keyboard action adds the search term as a new item
     - store: add new store
 - UI language is a bit different from code language in terms of item states:
-    - activated items have no state name, they're just there in normal font
-    - deactivated items are labeled "Done"
-    - postponed items are labeled "N/A"
+    - activated items have no state, they're just there in normal font
+    - deactivated items show a "done" icon and dimmed text
+    - postponed items show an "N/A" icon and slightly dimmed text
+    - items unavailable in the active store are italicized
 - backend in database
     - items: strings
         - not unique (i don't want to deal with the error message)
-        - case-insensitive (store as-entered)
+        - case- & accent-insensitive matching (stored as entered)
     - states: strings
-    - item states is a relational table (item<->state)
-        - includes state_changed_at timestamp (nullable, updated on every state change)
+    - item<->state is a relational table (no row = activated)
+        - carries a nullable state_changed_at, updated on every state change
         - used for "recent done items" filtering
     - stores are just strings
     - item unavailability is just a relation table (store<->item)
-    - store order is a relational table (store<->item) with order integer
-        - new items' order for any shop is assumed NULL (no db entry) and sorted before sorted items
-        - unsorted items are sorted by item id (i.e. sorted by age because newer items = higher id)
-        - duplicate sort indices are not critical (items are sorted next to each other by item id)
-          but app logic should prevent this. but don't fail on db layer if app logic fails.
+    - store order is a relational table (store<->item) with an integer order
+        - new items are appended to the end of the store's order
+        - reordering writes concrete integers (gapped in the main list, dense in the store list)
+        - don't fail on the db layer if ordering gets inconsistent; the app keeps it consistent
     - item add history is a relational table (item<->timestamp)
         - activation is recorded
         - done within mistake_done_seconds removes the latest history entry
@@ -86,29 +90,30 @@
     - history settings in preferences: history_days, mistake_done_seconds, reactivate_min_seconds
 - main list page visible from lockscreen
 - offline-first
+- sync across devices & share with other people (intent-based, see NETWORKING.md)
+- export/import backup (zip of database + settings)
 - open source (CC0)
-- minimal permissions
-- sync across devices & share with other people (ignore sync/network/collisions for MVP)
+- minimal permissions (INTERNET only)
 
 #### Stack & Android requirements
 - kotlin
-- target android 8+
+- min android 8 (SDK 26)
 - use jetpack libs as appropriate and useful
     - room for DB
 - small apk size is a high-value target
 
 ### Server
-- in /server/
-- sync shopping lists across devices
-- in rust
-    - minimal dependencies
-- simple json api
-- sync lists & stores (versioned)
-- share lists (not copy, access)
+- in rust, at the repo root (qs3k-api.rs)
+- minimal dependencies
+- simple json api (POST/GET intents, snapshot, debug)
+- intent-based sync with server-side compaction (see NETWORKING.md)
+- share lists by access (list UUID / qs3k:// link), not by copy
+- CLI client (qs3k-cli.rs) for add/done/search/show plus shell completions
 
 ## Design and a11y
-- handedness setting
-    - allow user to reverse swipe directions and FAB placement (left-handed mode)
-- three zoom/fontsize modes: compact, normal, large
-- dark/light theme (but keep it DRY)
+- handedness: left-handed mode flips the FAB side (implemented); reversing swipe
+  directions and a settings toggle are not wired yet
+- dark/light theme via system setting (single DayNight theme, night color overrides)
 - minimalistic design first, no frills unless asked for
+- not yet: text/zoom scale modes (compact/normal/large), item-history visualization,
+  recurring-items frequency view

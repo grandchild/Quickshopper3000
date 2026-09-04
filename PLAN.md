@@ -5,30 +5,35 @@
 ### Core
 - **Language**: Kotlin
 - **Min SDK**: 26 (Android 8.0)
-- **Target SDK**: 34 (Android 14)
-- **Build System**: Gradle with Kotlin DSL
+- **Compile / Target SDK**: 36
+- **Build System**: Gradle (Groovy DSL), KSP for Room
+- **Java**: 17
 
 ### Architecture
-- **Pattern**: MVVM (Model-View-ViewModel)
-- **DI**: Manual dependency injection (avoid Hilt/Dagger overhead)
-- **Navigation**: Single Activity with ViewPager2 (Stores/Main) - two pages only
+- **Pattern**: MVVM (Model-View-ViewModel), Views (no Compose), RecyclerView
+- **DI**: Manual — `ViewModelProvider` factories, no Hilt/Dagger
+- **Navigation**: Single Activity + ViewPager2, two pages (Stores = 0, Main = 1).
+  ViewPager swipe input is disabled; pages are switched by a fling gesture on the
+  BottomAppBar. Main is the default page.
 
-### Key Dependencies
-- **UI**: Material Design Components, RecyclerView, ViewBinding, ViewPager2
-- **Database**: Room (persistence library)
+### Key Dependencies (exact versions in `app/build.gradle`)
+- **UI**: Material Components, RecyclerView, ViewBinding, ViewPager2
+- **Database**: Room (runtime/ktx + compiler via KSP)
 - **Coroutines**: kotlinx-coroutines-android
-- **Lifecycle**: androidx.lifecycle.viewmodel-ktx
-- **Navigation**: androidx.navigation.fragment-ktx
-- **Testing**: JUnit, Mockito, Room testing, Espresso
+- **Lifecycle**: lifecycle-viewmodel-ktx + lifecycle-livedata-ktx
+- **Navigation component** is declared but unused
+- **Testing**: JUnit, kotlinx-coroutines-test, org.json (unit); AndroidJUnit4,
+  Room testing (instrumented). Mockito and Espresso are declared but unused.
 
 ## Database Schema
 
 ### Room Entities
 
 ```kotlin
-@Entity(tableName = "items")
+@Entity(tableName = "items", indices = [Index(value = ["uuid"], unique = true)])
 data class ItemEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @ColumnInfo(name = "uuid") val uuid: String,
     @ColumnInfo(name = "name", collate = ColumnInfo.NOCASE) val name: String,
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "amount", defaultValue = "1") val amount: Int = 1
@@ -37,13 +42,14 @@ data class ItemEntity(
 @Entity(tableName = "item_states", primaryKeys = ["item_id"])
 data class ItemStateEntity(
     @ColumnInfo(name = "item_id") val itemId: Long,
-    val state: String,
+    val state: String,                 // "DEACTIVATED" | "POSTPONED"; no row = ACTIVATED
     @ColumnInfo(name = "state_changed_at") val stateChangedAt: Long? = null
 )
 
-@Entity(tableName = "stores")
+@Entity(tableName = "stores", indices = [Index(value = ["uuid"], unique = true)])
 data class StoreEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @ColumnInfo(name = "uuid") val uuid: String,
     val name: String,
     val specialtyStore: Boolean = false
 )
@@ -67,37 +73,65 @@ data class ItemAddHistoryEntity(
     @ColumnInfo(name = "item_id") val itemId: Long,
     @ColumnInfo(name = "added_at") val addedAt: Long
 )
+
+// Sync (see NETWORKING.md)
+@Entity(tableName = "sync_intent_queue")
+data class SyncIntentQueueEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @ColumnInfo(name = "ulid") val ulid: String,
+    @ColumnInfo(name = "intent_json") val intentJson: String,
+    @ColumnInfo(name = "synced", defaultValue = "0") val synced: Int = 0
+)
+
+@Entity(tableName = "sync_state")
+data class SyncStateEntity(
+    @PrimaryKey @ColumnInfo(name = "key") val key: String,
+    @ColumnInfo(name = "value") val value: String
+)
+
+@Entity(tableName = "sync_tombstones")
+data class SyncTombstoneEntity(
+    @PrimaryKey @ColumnInfo(name = "entity_uuid") val entityUuid: String,
+    @ColumnInfo(name = "deleted_at_ulid") val deletedAtUlid: String
+)
 ```
 
 ## Application Architecture
 
 ### Package Structure
 ```
-com.quickshopper3k/
+org.effekthasch.quickshopper3k/
 ├── data/
-│   ├── local/ (Room database, DAOs, entities)
-│   └── repository/
-├── domain/
-│   └── model/ (Item, ItemState, Store)
+│   ├── local/ (AppDatabase, DAOs, entities incl. sync tables)
+│   ├── repository/ (ShoppingRepository)
+│   └── sync/ (SyncManager, SyncIntent, IntentApplier, SnapshotApplier,
+│               IntentEmitter, SyncHttpClient, SyncStats)
+├── domain/model/ (Item, ItemState, Store, StoreItem)
 ├── ui/
 │   ├── MainActivity.kt
-│   ├── stores/ (Fragment, ViewModel, Adapter - stores management page)
-│   └── main/ (Fragment, ViewModel, Adapter - unified list page)
-└── util/
+│   ├── MainPagerAdapter.kt
+│   ├── FabController.kt
+│   ├── SettingsActivity.kt
+│   ├── DebugActivity.kt
+│   ├── common/ (BaseListFragment, BaseDragAdapter, ItemAmountBadge)
+│   ├── main/ (MainFragment, MainViewModel, MainItemsAdapter)
+│   └── stores/ (StoresFragment, StoresViewModel, StoresItemsAdapter)
+└── util/ (PreferencesManager, Ulid, BackupManager)
 ```
 
 ### Domain Models
 
 ```kotlin
-enum class ItemState {
-    ACTIVATED, DEACTIVATED, POSTPONED
-}
+enum class ItemState { ACTIVATED, DEACTIVATED, POSTPONED }
 
 data class Item(
     val id: Long,
+    val uuid: String,
     val name: String,
     val state: ItemState,
-    val createdAt: Long
+    val createdAt: Long,
+    val stateChangedAt: Long? = null,
+    val amount: Int = 1
 )
 
 data class StoreItem(
@@ -108,6 +142,7 @@ data class StoreItem(
 
 data class Store(
     val id: Long,
+    val uuid: String,
     val name: String,
     val specialtyStore: Boolean = false
 )
@@ -116,97 +151,97 @@ data class Store(
 ## UI Implementation
 
 ### Navigation
-- **MainActivity** hosts ViewPager2 with Stores and Main fragments (2 pages, swipeable)
-- **BottomAppBar** fixed at bottom, content updates based on current page
-- Swipe left/right on content area switches between Stores/Main modes
-- BottomAppBar observes ViewPager position to update menus/title
-- **Note**: There is NO separate "Store Edit" destination - all store management happens in Stores mode (page 0)
+- **MainActivity** hosts ViewPager2 with Stores (page 0) and Main (page 1); page
+  swipe input disabled, fling on the BottomAppBar switches pages.
+- **BottomAppBar** holds: overflow menu, store selector, done-visibility toggle,
+  selection counter (stores mode). Its content updates with the current page.
+- **FAB** is anchored to the BottomAppBar and changes per page (add store / search).
+- There is NO separate "Store Edit" destination — all store management happens in
+  Stores mode (page 0).
 
 ### Screen Layouts
 
 #### Stores Mode (ViewPager Page 0)
-This is the ONLY page for managing stores and per-store item configuration.
-- **BottomAppBar**: Store selector (dropdown icon), FAB to add store, delete store option
-- **RecyclerView**: All items for selected store with drag handles
-- **FAB**: Add store (anchored to BottomAppBar)
-- **Empty state**: "No stores" text when no store selected, no items shown
-- **Item row**: Drag handle, item name (grayed-out if unavailable)
-- **Drag to reorder**: Changes store-specific item order
-- **Swipe right**: Mark item as available (normal appearance)
-- **Swipe left**: Mark item as unavailable (grayed-out with strikethrough)
-- **Add store dialog**: Text input for name + checkbox for "Specialty store"
-- **Store selection**: Via menu icon, shows AlertDialog with single-choice list
-- **Delete store**: Via overflow menu, clears current selection
-- **Horizontal swipe**: Switch to Main mode
+The ONLY page for managing stores and per-store item configuration.
+- **Store selector**: text button opening a PopupMenu of stores (specialty stores
+  prefixed with ★).
+- **FAB**: add store → dialog with name input + "Specialty store" checkbox.
+- **Rename / delete store**: via the overflow menu (delete asks for confirmation and
+  clears the current selection).
+- **RecyclerView**: all items for the selected store, each row has a drag handle.
+- **Drag to reorder**: writes a store-specific order; multi-select (tap / long-press)
+  lets you drag a contiguous block.
+- **Swipe** (either direction): toggles available <-> unavailable; unavailable items
+  are dimmed.
+- **Empty state**: "No stores" text when no store is selected.
 
 #### Main Mode (ViewPager Page 1)
-- **BottomAppBar**: Store selector (dropdown), done-items visibility button (tristate), settings menu (right side)
-- **Done visibility button**: Cycles through three states on tap:
-  - NONE: Hide all done items (default)
-  - RECENT: Show items marked done within last X minutes (X=20 default)
-  - ALL: Show all done items
-  - Icon changes per state for visual clarity
-- **FAB**: Search icon (magnifier), anchored to BottomAppBar
-  - Tapping FAB expands search bar above BottomAppBar (same as old Shop behavior)
-  - Search bar filters list in real-time as user types
-  - Small "+" icon appears on right end of search bar when search term doesn't exactly match an existing item name
-  - When search yields no results, keyboard action button becomes checkmark/enter to add item directly
-  - Tapping "+" or pressing keyboard action adds search term as new activated item, then clears search
-- **RecyclerView**: Filtered & sorted by current store; sorted by state (activated, postponed, deactivated), then by store order, then by ID
-- **Item swipe gestures**: per DESIGN.md state transitions
-- **Long press**: Edit item dialog
-- **Horizontal swipe**: Switch left to Stores mode
-- **Lockscreen**: Main page remains visible on lockscreen (setShowWhenLocked/setTurnScreenOn flags)
+- **BottomAppBar**: store selector (PopupMenu incl. "All items"), done-visibility
+  toggle (two-state `current`/`all`, shown as a text label), overflow menu.
+- **FAB**: search (magnifier-with-plus), toggles a search bar above the BottomAppBar.
+  - Search filters in real time as the user types.
+  - A "+" button appears at the right end when the term has no exact match.
+  - With no results the keyboard action becomes a checkmark/enter; either path adds
+    the term as a new activated item, then clears the search.
+- **RecyclerView**: items in store order then id (no state grouping); filtered by
+  done-visibility, store availability, and the search term.
+- **Item swipes**: per DESIGN.md state machine, with a colored background + state icon.
+- **Long press**: context menu with amount +/- (tap the value for a set-amount dialog),
+  toggle availability (only when a real store is selected), and edit (rename/delete).
+- **Overflow menu**: import items, activate all, deactivate all, activate postponed,
+  flush recently done, share active items.
+- **Lockscreen**: Main page stays visible (setShowWhenLocked / setTurnScreenOn).
 
 ### Theming
-- Material Design Components
-- Light/Dark theme via system setting
-- Three text scale modes in preferences: compact (0.9x), normal (1.0x), large (1.2x)
+- Material Components, `DayNight` theme following the system dark/light setting.
+- One base theme with brand colors; `values-night` overrides colors only.
 
 ### Handedness Setting
-SharedPreferences boolean `is_left_handed`:
-- Controls FAB alignment on BottomAppBar (`fabAlignmentMode`: "end" vs "start")
-- Controls menu overflow position on BottomAppBar
-- Reverses item swipe directions
-- Controls search bar add-button position (left vs right end icon)
+SharedPreferences `is_left_handed` (default false):
+- Flips the FAB anchor side on the BottomAppBar (start vs end).
+- Not exposed in a settings UI yet; swipe-direction reversal is not implemented.
 
 ### Swipeable Implementation
-- **ViewPager2**: Horizontal page swipes between Stores/Main modes
-- **ItemTouchHelper**: Item-level swipes with visual feedback (background color/icon)
-- No gesture conflicts: ViewPager handles horizontal content swipes, ItemTouchHelper handles individual item swipes
+- **ItemTouchHelper**: item-level swipes (colored background + state icon) and
+  handle-based drag, with a combined callback per list.
+- No gesture conflicts: ViewPager page input is disabled, so only item swipes/drag
+  are handled.
 
 ## Data Flow
 
 ### General Pattern
-- Repository exposes Room queries as Flow
-- ViewModel converts to LiveData via `asLiveData()`
-- Fragment observes LiveData, updates RecyclerView adapter
-- User actions → ViewModel → Repository → Room → Flow emits
+- Repository exposes Room queries as Flow.
+- ViewModel converts to LiveData; the displayed list is a `MediatorLiveData` that
+  recomputes filtering/sorting in memory from its sources.
+- Fragment observes LiveData and updates the RecyclerView adapter.
+- User actions → ViewModel → Repository → Room (+ emits a sync intent) → Flow emits.
 
 ### Main Mode
-- Query items with JOIN on item_states, LEFT JOIN on store_item_order and store_item_unavailability
-- Filter by current store availability (from preferences)
-- Sort by state first, then: NULL order items (by ID), then by sort_order, then by ID
-- Search filters in-memory on query result
+- Query joins items with item_states, store_item_order (active store + default store
+  0), and store_item_unavailability; ordered by store order then id.
+- In-memory: done-visibility (current/all, with the flush cutoff), availability
+  (skipped for "All items"), and case/accent-insensitive search.
+- Stale done items with a non-default amount have their amount reset to 1.
 
-### Store Edit Mode
-- Load all items for current store
-- Drag updates local state, batch write to DB on exit
-- Availability toggle writes immediately
+### Store Mode
+- Loads all items for the current store.
+- Drag updates local state, then writes the order (dense indices) on release.
+- Availability toggle writes immediately.
 
 ## Persistence
 
-### SharedPreferences
-Store in default shared preferences:
-- `current_store_id`: Long? (null = no store selected)
+### SharedPreferences (`quickshopper3k_prefs`)
+- `current_store_id`: Long? (null = none)
+- `selected_shop_store_ids`: Set<Long> (last selected store for the main list)
 - `is_left_handed`: Boolean (default false)
-- `text_scale`: String ("compact"|"normal"|"large", default "normal")
-- `show_done_items_mode`: String ("none"|"recent"|"all", default "none")
-- `recently_done_minutes`: Int (default 60, threshold for "recent" mode)
-- `flush_recently_done_at`: Long? (timestamp for "flush recently done" action; supersedes minutes threshold while fresher)
+- `done_visibility_mode`: "current" | "all" (default "current")
+- `recently_done_minutes`: Int (default 60, "current" window)
+- `flush_recently_done_at`: Long? (cutoff for the flush action; supersedes the
+  minutes window while fresher)
 - `history_days`: Int (default 183)
 - `mistake_done_seconds`: Int (default 20)
 - `reactivate_min_seconds`: Int (default 3600)
+- `sync_server_uri`: String?, `device_id`: String, `list_id`: String
 
 ### Room Configuration
 ```kotlin
@@ -217,146 +252,86 @@ Store in default shared preferences:
         StoreEntity::class,
         StoreItemUnavailabilityEntity::class,
         StoreItemOrderEntity::class,
-        ItemAddHistoryEntity::class
+        ItemAddHistoryEntity::class,
+        SyncIntentQueueEntity::class,
+        SyncStateEntity::class,
+        SyncTombstoneEntity::class
     ],
-    version = 5
+    version = 7,
+    exportSchema = false
 )
-abstract class AppDatabase : RoomDatabase() {
-    abstract fun itemDao(): ItemDao
-    abstract fun storeDao(): StoreDao
-}
+abstract class AppDatabase : RoomDatabase()
 ```
-No migrations registered. Fresh installs start at version 5 with the current schema.
+No migrations registered. Fresh installs start at version 7.
+
+## Sync (see NETWORKING.md)
+- Intent queue + sync_state + tombstones tables; every mutating operation emits an
+  intent in addition to writing locally.
+- `SyncManager` polls every 5s while the app is in the foreground: push queued
+  intents, then pull by `since` ULID. On first link it pulls the snapshot/intents or
+  pushes the full local state.
+- HTTP bodies are gzip-compressed; a hand-rolled ULID provides ordering.
+- Item-state conflicts resolve by priority (DEACTIVATED > ACTIVATED > POSTPONED);
+  other fields use last-writer-wins by server ULID.
 
 ## State Management
 
 ### ViewModels
-- Expose LiveData for data lists (from Flow.asLiveData())
-- Expose LiveData for UI state
-- User action functions use viewModelScope internally
+- Expose LiveData for lists and UI state; action functions run in `viewModelScope`.
 
 ### Error Handling
-- DB operations in try/catch
-- Errors logged and shown to user via Snackbar
-- No crashes on constraint violations
+- DB operations wrapped in try/catch returning `Result`.
+- Errors are logged and surfaced via Snackbar; no crashes on constraint violations.
 
 ## Testing Strategy
 
-### Unit Tests
-- Repository queries
-- ViewModel state transformations
-- Sorting logic (NULL order handling, duplicate sort_order)
+### Instrumented tests (`androidTest`, AndroidJUnit4 + in-memory Room)
+- Repository round-trips (items, stores, availability, ordering)
+- Filtering & availability, sorting & ordering, state transitions, swipe logic
+- Stores management, search & case-insensitivity, preferences
 
-### Integration Tests
-- Room migrations (future)
-- State transitions per DESIGN.md
-- Store filtering and ordering
+### Unit tests (`test`)
+- ULID generation/parsing, sync intent serialization, stable filtered reorder
 
-### UI Tests
-- Swipe gestures
-- FAB actions
-- Navigation
-- Search
+### Notes
+- No Espresso UI tests; Mockito is declared but unused.
 
 ## Build Configuration
-
-### build.gradle.kts (app)
-```kotlin
-android {
-    compileSdk = 34
-    defaultConfig {
-        minSdk = 26
-        targetSdk = 34
-    }
-    buildFeatures {
-        viewBinding = true
-    }
-}
-
-dependencies {
-    implementation("androidx.core:core-ktx:1.17.0")
-    implementation("androidx.appcompat:appcompat:1.7.1")
-    implementation("com.google.android.material:material:1.12.0")
-    implementation("androidx.constraintlayout:constraintlayout:2.2.1")
-    implementation("androidx.recyclerview:recyclerview:1.4.0")
-    
-    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.10.0")
-    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.10.0")
-    implementation("androidx.navigation:navigation-fragment-ktx:2.9.6")
-    implementation("androidx.navigation:navigation-ui-ktx:2.9.6")
-    implementation("androidx.viewpager2:viewpager2:1.1.0")
-    
-    implementation("androidx.room:room-runtime:2.8.4")
-    implementation("androidx.room:room-ktx:2.8.4")
-    ksp("androidx.room:room-compiler:2.8.4")
-    
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("org.mockito:mockito-core:5.21.0")
-    testImplementation("androidx.arch.core:core-testing:2.2.0")
-    androidTestImplementation("androidx.test.ext:junit:1.2.1")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
-    androidTestImplementation("androidx.room:room-testing:2.8.4")
-}
-```
-
-### Proguard
-Keep Room entities and DAOs, shrink everything else aggressively.
+- `app/build.gradle` (Groovy): compileSdk 36, minSdk 26, targetSdk 36, viewBinding,
+  release R8 minification with the default + Room consumer rules.
+- See `app/build.gradle` for the exact dependency list and versions.
+- `Makefile` builds the app (`assembleRelease`), the API and CLI (`cargo build`).
 
 ## Performance Targets
-- APK size: < 3MB (Views + Room significantly smaller than Compose)
-- Cold start: < 800ms on mid-range device
-- List scroll: 60fps for 1000+ items (RecyclerView with DiffUtil)
-- DB operations: < 50ms for typical queries
+- Small APK (Views + Room)
+- Fast cold start
+- Smooth scrolling for 1000+ items (RecyclerView)
+- Fast DB queries for typical list operations
 
 ## Accessibility
-- All interactive elements: minimum 48dp touch target
+- Minimum 48dp touch targets
 - Content descriptions on all icons
-- Support TalkBack navigation
-- Text scale respects system font size + app multiplier
-- High contrast mode compatible
+- TalkBack navigation
+- Respects system font size
+- High-contrast compatible
 
 ## MVP Scope
 Version 1.0 includes:
-- Both modes functional (Stores, Main - in ViewPager)
-- FAB-triggered search bar with integrated add functionality
-- Local database persistence
-- Handedness setting
-- Theme support
-- Text scale options
-- Lockscreen visibility on Main page
-- NO sync/network (deferred to v2.0)
-- NO separate Store Edit navigation destination (all store management in Stores mode page 0)
+- Both modes (Stores, Main) in a ViewPager
+- FAB-triggered search with integrated add
+- Local database persistence + offline-first
+- Intent-based sync + sharing (see NETWORKING.md), plus a Rust CLI
+- Rust server (qs3k-api.rs) with compaction
+- Import items, bulk state actions, item amounts, backup export/import
+- Lockscreen visibility on the Main page
+- DayNight theme
 
-## Implementation Order
-1. ✅ Database schema + DAOs
-2. ✅ Repository layer + domain models
-3. ✅ MainActivity with BottomAppBar + ViewPager2 adapter
-4. ✅ Plan fragment (core functionality)
-5. ✅ Shop fragment + store selection
-6. ✅ ViewPager/BottomAppBar integration
-7. ✅ Stores page (reorder items, set availability per store via swipes)
-8. ✅ Store selector via menu dialog (Stores mode)
-9. ✅ Swipe gestures for availability toggle (Stores mode)
-11. ✅ Specialty store flag in database and UI
-12. ✅ Import items feature (bulk add from text)
-13. ✅ Bulk state changes (activate all / deactivate all in Plan mode)
-14. ✅ Lockscreen visibility for Shop mode
-15. ⏳ Merge Plan+Shop into unified Main page
-16. ⏳ Add "+" functionality to search bar (add item when no exact match)
-17. ⏳ Settings + preferences
-18. ⏳ Polish + accessibility
-19. ⏳ Testing
-
-## Implementation Details to Decide
-- Drag animation style
-- Search debounce timing (for filtering, ~150-200ms suggested)
-- Done visibility button icon set (distinct icons for none/recent/all states) - **POSTPONED**, using text labels ("todo"/"recent"/"all") for now
-- Store selector UI pattern (Spinner vs custom dropdown)
-- DiffUtil comparison strategy
-- Error event delivery mechanism (SingleLiveEvent vs Channel)
-- ViewPager page change animation duration
-- BottomAppBar content transition animation
-- Search bar "+" icon appearance threshold (exact match vs partial match)
-- Keyboard action button switch timing (when to show checkmark vs default action)
+## Remaining (not yet)
+- App icon
+- Item-history visualization
+- Recurring-items frequency view
+- Settings UI for the numeric prefs (history_days, mistake_done_seconds,
+  reactivate_min_seconds, recently_done_minutes) and for handedness
+- Text/zoom scale modes (compact/normal/large) if still wanted
+- Mark newly added items unavailable in existing specialty stores
+- Room migrations (currently fresh-install only)
