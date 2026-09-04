@@ -11,6 +11,7 @@ import org.effekthasch.quickshopper3k.domain.model.ItemState
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
 import org.effekthasch.quickshopper3k.ui.common.BaseDragAdapter
 import org.effekthasch.quickshopper3k.ui.common.bindItemAmountBadge
+import org.effekthasch.quickshopper3k.ui.common.bindItemText
 
 class MainItemsAdapter(
     private val onItemClick: () -> Boolean,
@@ -180,7 +181,7 @@ class MainItemsAdapter(
         }
 
         fun bind(storeItem: StoreItem, position: Int) {
-            binding.itemNameText.text = storeItem.item.name
+            binding.itemNameText.bindItemText(storeItem.item)
 
             binding.itemAmountText.bindItemAmountBadge(storeItem.item.amount)
 

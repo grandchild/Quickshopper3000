@@ -218,9 +218,20 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         }
     }
 
-    fun updateItemName(itemId: Long, newName: String, onResult: (Result<Unit>) -> Unit) {
+    fun updateItem(
+        itemId: Long,
+        name: String,
+        description: String,
+        synonyms: String,
+        onResult: (Result<Unit>) -> Unit
+    ) {
         viewModelScope.launch {
-            val result = repository.updateItemName(itemId, newName.trim())
+            val result = repository.updateItem(
+                itemId,
+                name.trim(),
+                ItemText.normalizeDescription(description),
+                ItemText.normalizeSynonymText(synonyms)
+            )
             onResult(result)
         }
     }

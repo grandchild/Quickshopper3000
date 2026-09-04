@@ -69,6 +69,12 @@ class ItemTextTest {
     }
 
     @Test
+    fun formatsDescriptionForSharing() {
+        assertEquals("Tofu", ItemText.formatForSharing(item("Tofu")))
+        assertEquals("Tofu (smoked)", ItemText.formatForSharing(item("Tofu", "smoked")))
+    }
+
+    @Test
     fun quickAddIsBlockedOnlyByDescriptionlessExactName() {
         assertTrue(ItemText.blocksQuickAdd(listOf(item("Tofu")), "töfu"))
         assertFalse(ItemText.blocksQuickAdd(listOf(item("Tofu", "smoked")), "töfu"))

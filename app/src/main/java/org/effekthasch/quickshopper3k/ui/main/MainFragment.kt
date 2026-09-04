@@ -32,6 +32,7 @@ import org.effekthasch.quickshopper3k.databinding.FragmentMainBinding
 import org.effekthasch.quickshopper3k.domain.model.ItemIdentity
 import org.effekthasch.quickshopper3k.domain.model.ItemInput
 import org.effekthasch.quickshopper3k.domain.model.ItemState
+import org.effekthasch.quickshopper3k.domain.model.ItemText
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
 import org.effekthasch.quickshopper3k.ui.FabController
 import org.effekthasch.quickshopper3k.ui.common.bindItemAmountBadge
@@ -595,14 +596,46 @@ class MainFragment :
     private fun showEditItemDialog(storeItem: StoreItem) {
         val dialogBinding = DialogAddItemBinding.inflate(layoutInflater)
         dialogBinding.itemNameInput.setText(storeItem.item.name)
+        dialogBinding.itemDescriptionInput.setText(storeItem.item.description)
+        dialogBinding.itemSynonymsInput.setText(storeItem.item.synonyms)
+
+        fun resizeSynonyms() {
+            val lines = dialogBinding.itemSynonymsInput.text
+                ?.toString()
+                .orEmpty()
+                .lines()
+            val lastNonEmptyLine = lines.indexOfLast { it.isNotBlank() }
+            val visibleLines = if (lastNonEmptyLine < 0) 1 else (lastNonEmptyLine + 2).coerceAtMost(8)
+            val height = dialogBinding.itemSynonymsInput.lineHeight * visibleLines +
+                    dialogBinding.itemSynonymsInput.compoundPaddingTop +
+                    dialogBinding.itemSynonymsInput.compoundPaddingBottom
+            val layoutParams = dialogBinding.itemSynonymsInput.layoutParams
+            if (layoutParams.height != height) {
+                layoutParams.height = height
+                dialogBinding.itemSynonymsInput.layoutParams = layoutParams
+            }
+        }
+
+        dialogBinding.itemSynonymsInput.addTextChangedListener(
+            object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                    resizeSynonyms()
+                }
+                override fun afterTextChanged(s: android.text.Editable?) {}
+            }
+        )
+        dialogBinding.itemSynonymsInput.post(::resizeSynonyms)
 
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.edit_item_title)
             .setView(dialogBinding.root)
             .setPositiveButton(R.string.save) { _, _ ->
-                val newName = dialogBinding.itemNameInput.text?.toString() ?: ""
-                if (newName.isNotBlank()) {
-                    viewModel.updateItemName(storeItem.item.id, newName) { result ->
+                val name = dialogBinding.itemNameInput.text?.toString() ?: ""
+                val description = dialogBinding.itemDescriptionInput.text?.toString() ?: ""
+                val synonyms = dialogBinding.itemSynonymsInput.text?.toString() ?: ""
+                if (name.isNotBlank()) {
+                    viewModel.updateItem(storeItem.item.id, name, description, synonyms) { result ->
                         result.onFailure {
                             Snackbar.make(binding.root, R.string.error_occurred, Snackbar.LENGTH_SHORT).show()
                         }
@@ -891,7 +924,7 @@ class MainFragment :
             return
         }
 
-        val text = items.joinToString(separator = "\n") { it.item.name }
+        val text = items.joinToString(separator = "\n") { ItemText.formatForSharing(it.item) }
         val shareIntent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_TEXT, text)

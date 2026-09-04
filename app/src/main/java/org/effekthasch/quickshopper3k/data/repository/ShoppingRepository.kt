@@ -125,13 +125,33 @@ class ShoppingRepository(private val database: AppDatabase) {
     suspend fun updateItemName(itemId: Long, newName: String): Result<Unit> {
         return try {
             val item = itemDao.getItemById(itemId)
-            if (item != null) {
-                itemDao.updateItem(item.copy(name = newName))
-                emitter.emit(SyncIntent.RenameItem(item.uuid, newName))
-                Result.success(Unit)
-            } else {
-                Result.failure(IllegalArgumentException("Item not found"))
+                ?: return Result.failure(IllegalArgumentException("Item not found"))
+            updateItem(itemId, newName, item.description, item.synonyms)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateItem(
+        itemId: Long,
+        name: String,
+        description: String,
+        synonyms: String
+    ): Result<Unit> {
+        return try {
+            val item = itemDao.getItemById(itemId)
+                ?: return Result.failure(IllegalArgumentException("Item not found"))
+            itemDao.updateItem(
+                item.copy(
+                    name = name,
+                    description = description,
+                    synonyms = synonyms
+                )
+            )
+            if (item.name != name) {
+                emitter.emit(SyncIntent.RenameItem(item.uuid, name))
             }
+            Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }

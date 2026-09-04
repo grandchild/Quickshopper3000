@@ -44,6 +44,10 @@ object ItemText {
         )
     }
 
+    fun formatForSharing(item: Item): String {
+        return if (item.description.isBlank()) item.name else "${item.name} (${item.description})"
+    }
+
     fun blocksQuickAdd(items: Iterable<Item>, query: String): Boolean {
         val normalizedQuery = normalizeForSearch(query.trim())
         return items.any {

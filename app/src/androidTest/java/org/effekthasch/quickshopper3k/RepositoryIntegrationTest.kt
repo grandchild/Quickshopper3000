@@ -87,6 +87,19 @@ class RepositoryIntegrationTest {
     }
 
     @Test
+    fun updateItem_changesIndependentTextFields() = runTest {
+        val itemId = repository.addItem("Tofu").getOrThrow()
+
+        val result = repository.updateItem(itemId, "Tofu", "smoked", "bean curd")
+        assertTrue(result.isSuccess)
+
+        val item = repository.getAllItems().first().single()
+        assertEquals("Tofu", item.name)
+        assertEquals("smoked", item.description)
+        assertEquals("bean curd", item.synonyms)
+    }
+
+    @Test
     fun deleteItem_removesFromDatabase() = runTest {
         val itemId = repository.addItem("Milk").getOrThrow()
 

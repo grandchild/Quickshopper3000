@@ -28,6 +28,9 @@
 
     <!-- Dialogs -->
     <string name="item_name">Item name</string>
+    <string name="item_description">Description</string>
+    <string name="item_synonyms">Synonyms</string>
+    <string name="item_synonyms_hint">Separated by spaces, commas, or new lines</string>
     <string name="store_name">Store name</string>
     <string name="edit_item_title">Edit Item</string>
     <string name="context_menu_edit">Edit</string>

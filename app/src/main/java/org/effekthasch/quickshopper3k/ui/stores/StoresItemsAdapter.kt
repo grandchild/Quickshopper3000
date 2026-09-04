@@ -8,6 +8,7 @@ import org.effekthasch.quickshopper3k.R
 import org.effekthasch.quickshopper3k.databinding.ItemShoppingItemBinding
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
 import org.effekthasch.quickshopper3k.ui.common.BaseDragAdapter
+import org.effekthasch.quickshopper3k.ui.common.bindItemText
 
 class StoresItemsAdapter(
     private val onItemClick: () -> Boolean,
@@ -167,7 +168,7 @@ class StoresItemsAdapter(
         }
 
         fun bind(storeItem: StoreItem, position: Int) {
-            binding.itemNameText.text = storeItem.item.name
+            binding.itemNameText.bindItemText(storeItem.item)
 
             binding.itemStateIcon.visibility = View.GONE
 
