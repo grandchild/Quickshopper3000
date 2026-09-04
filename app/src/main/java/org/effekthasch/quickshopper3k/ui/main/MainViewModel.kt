@@ -1,7 +1,6 @@
 package org.effekthasch.quickshopper3k.ui.main
 
 import androidx.lifecycle.LiveData
-import java.text.Normalizer
 import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -12,26 +11,25 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import org.effekthasch.quickshopper3k.data.repository.ShoppingRepository
 import org.effekthasch.quickshopper3k.domain.model.Item
+import org.effekthasch.quickshopper3k.domain.model.ItemIdentity
+import org.effekthasch.quickshopper3k.domain.model.ItemInput
 import org.effekthasch.quickshopper3k.domain.model.ItemState
+import org.effekthasch.quickshopper3k.domain.model.ItemText
 import org.effekthasch.quickshopper3k.domain.model.Store
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
 import org.effekthasch.quickshopper3k.util.DoneVisibilityMode
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
-    companion object {
-        private val COMBINING_MARKS_REGEX = Regex("\\p{M}")
-    }
-
     data class ImportPreviewItem(
-        val name: String,
+        val item: ItemInput,
         val isExisting: Boolean
     )
 
     data class ImportPreview(
         val orderedItems: List<ImportPreviewItem>,
-        val existingItems: List<String>,
-        val newItems: List<String>
+        val existingItems: List<ItemInput>,
+        val newItems: List<ItemInput>
     )
 
     private val _currentStoreId = MutableStateFlow<Long?>(null)
@@ -93,10 +91,9 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
                 }
             }
 
-            val normalizedQuery = if (query.isBlank()) "" else normalizeForSearch(query)
 
-            fun matchesSearch(storeItem: StoreItem): Boolean = query.isBlank() ||
-                    normalizeForSearch(storeItem.item.name).contains(normalizedQuery, ignoreCase = true)
+            fun matchesSearch(storeItem: StoreItem): Boolean =
+                ItemText.matches(storeItem.item, query)
 
             fun matchesVisibility(storeItem: StoreItem, mode: DoneVisibilityMode): Boolean = when {
                 isDragging -> true
@@ -144,36 +141,15 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
     val searchQuery: LiveData<String> = _searchQuery
     val doneVisibilityMode: LiveData<DoneVisibilityMode> = _doneVisibilityMode
 
-    private fun normalizeForSearch(text: String): String {
-        val normalized = Normalizer.normalize(text, Normalizer.Form.NFD)
-        return normalized.replace(COMBINING_MARKS_REGEX, "")
+    internal fun importIdentity(text: String): ItemIdentity? {
+        return ItemText.parseImportLine(text)?.let(ItemText::identity)
     }
 
-    private fun stripImportLine(text: String): String {
-        var stripped = text.trim()
-        while (stripped.startsWith("-") || stripped.startsWith("*")) {
-            stripped = stripped.drop(1).trimStart()
-        }
-        return stripped
-    }
-
-    internal fun normalizeImportName(text: String): String {
-        return normalizeForSearch(stripImportLine(text)).trim()
-    }
-
-    private fun parseImportLines(text: String): List<String> {
-        val seen = mutableSetOf<String>()
-        val result = mutableListOf<String>()
-        text.lines()
-            .map(::stripImportLine)
-            .filter { it.isNotBlank() }
-            .forEach { line ->
-                val normalized = normalizeImportName(line)
-                if (normalized.isNotBlank() && seen.add(normalized.lowercase())) {
-                    result.add(line)
-                }
-            }
-        return result
+    private fun parseImportLines(text: String): List<ItemInput> {
+        val seen = mutableSetOf<ItemIdentity>()
+        return text.lines()
+            .mapNotNull(ItemText::parseImportLine)
+            .filter { seen.add(ItemText.identity(it)) }
     }
 
     private fun historyDays(): Int = _historyDays.value ?: 183
@@ -182,15 +158,12 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
 
     private fun reactivateMinSeconds(): Int = _reactivateMinSeconds.value ?: 3600
 
-    fun hasExactMatch(query: String): Boolean {
-        val allItems = items.value ?: return false
-        val normalizedQuery = normalizeForSearch(query)
-        return allItems.any { normalizeForSearch(it.item.name).equals(normalizedQuery, ignoreCase = true) }
-    }
+    fun hasExactMatch(query: String): Boolean = hasBlockingExactName(query)
 
-    fun hasExactMatchRaw(query: String): Boolean {
-        val allItems = items.value ?: return false
-        return allItems.any { it.item.name.equals(query, ignoreCase = true) }
+    fun hasExactMatchRaw(query: String): Boolean = hasBlockingExactName(query)
+
+    private fun hasBlockingExactName(query: String): Boolean {
+        return ItemText.blocksQuickAdd(items.value.orEmpty().map { it.item }, query)
     }
 
     fun setCurrentStore(storeId: Long?) {
@@ -452,47 +425,44 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         }
     }
 
-    fun getAllItemNames(onResult: (Result<List<String>>) -> Unit) {
+    fun getAllItemInputs(onResult: (Result<List<ItemInput>>) -> Unit) {
         viewModelScope.launch {
-            onResult(repository.getAllItemNames())
+            onResult(repository.getAllItemInputs())
         }
     }
 
-    internal fun normalizeImportNames(names: Collection<String>): Set<String> {
-        return names.asSequence()
-            .map(::normalizeImportName)
-            .filter { it.isNotBlank() }
-            .map { it.lowercase() }
-            .toSet()
+    internal fun normalizeImportItems(items: Collection<ItemInput>): Set<ItemIdentity> {
+        return items.map(ItemText::identity).toSet()
     }
 
-    fun buildImportPreview(text: String, normalizedExisting: Set<String>): Result<ImportPreview> {
+    fun buildImportPreview(text: String, normalizedExisting: Set<ItemIdentity>): Result<ImportPreview> {
         val lines = parseImportLines(text)
         if (lines.isEmpty()) {
             return Result.failure(IllegalArgumentException("No items to import"))
         }
 
-        val existingItems = mutableListOf<String>()
-        val newItems = mutableListOf<String>()
+        val existingItems = mutableListOf<ItemInput>()
+        val newItems = mutableListOf<ItemInput>()
         val orderedItems = mutableListOf<ImportPreviewItem>()
 
-        lines.forEach { line ->
-            val normalized = normalizeImportName(line).lowercase()
-            if (normalizedExisting.contains(normalized)) {
-                existingItems.add(line)
-                orderedItems.add(ImportPreviewItem(line, true))
+        lines.forEach { item ->
+            if (ItemText.identity(item) in normalizedExisting) {
+                existingItems.add(item)
+                orderedItems.add(ImportPreviewItem(item, true))
             } else {
-                newItems.add(line)
-                orderedItems.add(ImportPreviewItem(line, false))
+                newItems.add(item)
+                orderedItems.add(ImportPreviewItem(item, false))
             }
         }
 
         return Result.success(ImportPreview(orderedItems, existingItems, newItems))
     }
 
-    fun importItems(names: List<String>, onResult: (Result<Int>) -> Unit) {
+    fun importItems(items: List<ItemInput>, onResult: (Result<Int>) -> Unit) {
         viewModelScope.launch {
-            val cleaned = names.map { it.trim() }.filter { it.isNotBlank() }
+            val cleaned = items.map {
+                ItemInput(it.name.trim(), ItemText.normalizeDescription(it.description))
+            }.filter { it.name.isNotBlank() }
             if (cleaned.isEmpty()) {
                 onResult(Result.failure(Exception("No items to import")))
                 return@launch
@@ -503,22 +473,16 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         }
     }
 
-    fun activateItemsByNames(names: List<String>, onResult: (Result<Unit>) -> Unit) {
+    fun activateItemsByIdentity(items: List<ItemInput>, onResult: (Result<Unit>) -> Unit) {
         viewModelScope.launch {
-            val normalized = names.asSequence()
-                .map { normalizeImportName(it) }
-                .filter { it.isNotBlank() }
-                .map { it.lowercase() }
-                .distinct()
-                .toList()
+            val normalized = items.distinctBy(ItemText::identity)
             if (normalized.isEmpty()) {
                 onResult(Result.failure(IllegalArgumentException("No items to activate")))
                 return@launch
             }
 
-            val lookupResult = repository.getItemIdsByNames(normalized)
-            lookupResult.onSuccess { idMap ->
-                val ids = normalized.mapNotNull { idMap[it] }.distinct()
+            val lookupResult = repository.getItemIdsByIdentity(normalized)
+            lookupResult.onSuccess { ids ->
                 if (ids.isEmpty()) {
                     onResult(Result.failure(IllegalArgumentException("No matching items to activate")))
                     return@onSuccess

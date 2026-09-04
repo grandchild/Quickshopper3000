@@ -2,7 +2,6 @@ package org.effekthasch.quickshopper3k.data.repository
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import java.text.Normalizer
 import org.effekthasch.quickshopper3k.data.local.AppDatabase
 import org.effekthasch.quickshopper3k.data.local.ItemAddHistoryEntity
 import org.effekthasch.quickshopper3k.data.local.ItemEntity
@@ -10,7 +9,9 @@ import org.effekthasch.quickshopper3k.data.local.StoreEntity
 import org.effekthasch.quickshopper3k.data.sync.IntentEmitter
 import org.effekthasch.quickshopper3k.data.sync.SyncIntent
 import org.effekthasch.quickshopper3k.domain.model.Item
+import org.effekthasch.quickshopper3k.domain.model.ItemInput
 import org.effekthasch.quickshopper3k.domain.model.ItemState
+import org.effekthasch.quickshopper3k.domain.model.ItemText
 import org.effekthasch.quickshopper3k.domain.model.Store
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
 import org.effekthasch.quickshopper3k.util.Ulid
@@ -25,12 +26,6 @@ class ShoppingRepository(private val database: AppDatabase) {
         const val DEFAULT_HISTORY_DAYS = 183
         const val DEFAULT_MISTAKE_DONE_SECONDS = 20
         const val DEFAULT_REACTIVATE_MIN_SECONDS = 3600
-        private val COMBINING_MARKS_REGEX = Regex("\\p{M}")
-    }
-
-    private fun normalizeName(name: String): String {
-        val normalized = Normalizer.normalize(name, Normalizer.Form.NFD)
-        return normalized.replace(COMBINING_MARKS_REGEX, "").trim().lowercase()
     }
 
     fun getAllItems(): Flow<List<Item>> {
@@ -40,6 +35,8 @@ class ShoppingRepository(private val database: AppDatabase) {
                     id = itemWithState.id,
                     uuid = itemWithState.uuid,
                     name = itemWithState.name,
+                    description = itemWithState.description,
+                    synonyms = itemWithState.synonyms,
                     state = ItemState.fromString(itemWithState.state),
                     createdAt = itemWithState.created_at,
                     stateChangedAt = itemWithState.state_changed_at,
@@ -49,24 +46,21 @@ class ShoppingRepository(private val database: AppDatabase) {
         }
     }
 
-    suspend fun getAllItemNames(): Result<List<String>> {
+    suspend fun getAllItemInputs(): Result<List<ItemInput>> {
         return try {
-            Result.success(itemDao.getAllItemNames())
+            Result.success(itemDao.getAllItems().map { ItemInput(it.name, it.description) })
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    suspend fun getItemIdsByNames(names: List<String>): Result<Map<String, Long>> {
+    suspend fun getItemIdsByIdentity(inputs: List<ItemInput>): Result<List<Long>> {
         return try {
-            val lookup = names.map { normalizeName(it) }
-                .filter { it.isNotBlank() }
-                .toSet()
-            val items = itemDao.getAllItems()
-            val result = items
-                .filter { normalizeName(it.name) in lookup }
-                .associate { normalizeName(it.name) to it.id }
-            Result.success(result)
+            val identities = inputs.map(ItemText::identity).toSet()
+            val ids = itemDao.getAllItems()
+                .filter { ItemText.identity(ItemInput(it.name, it.description)) in identities }
+                .map { it.id }
+            Result.success(ids)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -80,6 +74,8 @@ class ShoppingRepository(private val database: AppDatabase) {
                         id = itemWithStoreInfo.id,
                         uuid = itemWithStoreInfo.uuid,
                         name = itemWithStoreInfo.name,
+                        description = itemWithStoreInfo.description,
+                        synonyms = itemWithStoreInfo.synonyms,
                         state = ItemState.fromString(itemWithStoreInfo.state),
                         createdAt = itemWithStoreInfo.created_at,
                         stateChangedAt = itemWithStoreInfo.state_changed_at,
@@ -362,16 +358,17 @@ class ShoppingRepository(private val database: AppDatabase) {
     }
 
     suspend fun bulkAddItems(
-        names: List<String>,
+        items: List<ItemInput>,
         historyDays: Int = DEFAULT_HISTORY_DAYS
     ): Result<Int> {
         return try {
             val timestamp = System.currentTimeMillis()
-            val uuids = names.map { Ulid.generate() }
-            val entities = names.mapIndexed { index, name ->
+            val uuids = items.map { Ulid.generate() }
+            val entities = items.mapIndexed { index, item ->
                 ItemEntity(
                     uuid = uuids[index],
-                    name = name,
+                    name = item.name,
+                    description = item.description,
                     createdAt = timestamp
                 )
             }
@@ -395,7 +392,7 @@ class ShoppingRepository(private val database: AppDatabase) {
                 recordItemAdded(id, timestamp, historyDays)
             }
 
-            emitter.emit(SyncIntent.BulkAddItems(uuids.zip(names)))
+            emitter.emit(SyncIntent.BulkAddItems(uuids.zip(items.map { it.name })))
 
             Result.success(ids.size)
         } catch (e: Exception) {

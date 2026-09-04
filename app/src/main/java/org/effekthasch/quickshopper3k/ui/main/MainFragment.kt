@@ -29,6 +29,8 @@ import org.effekthasch.quickshopper3k.databinding.DialogItemContextMenuBinding
 import org.effekthasch.quickshopper3k.databinding.DialogImportItemsBinding
 import org.effekthasch.quickshopper3k.databinding.DialogSetItemAmountBinding
 import org.effekthasch.quickshopper3k.databinding.FragmentMainBinding
+import org.effekthasch.quickshopper3k.domain.model.ItemIdentity
+import org.effekthasch.quickshopper3k.domain.model.ItemInput
 import org.effekthasch.quickshopper3k.domain.model.ItemState
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
 import org.effekthasch.quickshopper3k.ui.FabController
@@ -700,7 +702,7 @@ class MainFragment :
             .create()
         val existingColor = ContextCompat.getColor(requireContext(), R.color.import_preview_existing)
         val newColor = ContextCompat.getColor(requireContext(), R.color.import_preview_new)
-        var normalizedKnownItemNames: Set<String>? = null
+        var normalizedKnownItems: Set<ItemIdentity>? = null
         var currentPreview: MainViewModel.ImportPreview? = null
 
         fun updateActionButtons(preview: MainViewModel.ImportPreview?, ready: Boolean) {
@@ -711,11 +713,11 @@ class MainFragment :
 
         fun refreshPreview() {
             val editable = dialogBinding.importTextInput.text ?: return
-            applyImportPreviewSpans(editable, normalizedKnownItemNames, existingColor, newColor)
-            currentPreview = normalizedKnownItemNames?.let { names ->
-                viewModel.buildImportPreview(editable.toString(), names).getOrNull()
+            applyImportPreviewSpans(editable, normalizedKnownItems, existingColor, newColor)
+            currentPreview = normalizedKnownItems?.let { items ->
+                viewModel.buildImportPreview(editable.toString(), items).getOrNull()
             }
-            updateActionButtons(currentPreview, normalizedKnownItemNames != null)
+            updateActionButtons(currentPreview, normalizedKnownItems != null)
         }
 
         dialogBinding.importTextInput.addTextChangedListener(object : android.text.TextWatcher {
@@ -751,12 +753,12 @@ class MainFragment :
         dialog.show()
         dialogBinding.importTextInput.requestFocus()
 
-        viewModel.getAllItemNames { result ->
+        viewModel.getAllItemInputs { result ->
             if (!dialog.isShowing) {
-                return@getAllItemNames
+                return@getAllItemInputs
             }
-            result.onSuccess { names ->
-                normalizedKnownItemNames = viewModel.normalizeImportNames(names)
+            result.onSuccess { items ->
+                normalizedKnownItems = viewModel.normalizeImportItems(items)
                 refreshPreview()
             }.onFailure {
                 dialog.dismiss()
@@ -771,7 +773,7 @@ class MainFragment :
 
     private fun applyImportPreviewSpans(
         editable: android.text.Editable,
-        normalizedKnownItemNames: Set<String>?,
+        normalizedKnownItems: Set<ItemIdentity>?,
         existingColor: Int,
         newColor: Int
     ) {
@@ -783,11 +785,11 @@ class MainFragment :
         text.split('\n').forEach { line ->
             val bounds = findImportItemBounds(line)
             if (bounds != null) {
-                val normalized = viewModel.normalizeImportName(
+                val identity = viewModel.importIdentity(
                     line.substring(bounds.first, bounds.second)
-                ).lowercase()
-                if (normalized.isNotBlank()) {
-                    val color = if (normalizedKnownItemNames?.contains(normalized) == true) existingColor else newColor
+                )
+                if (identity != null) {
+                    val color = if (identity in normalizedKnownItems.orEmpty()) existingColor else newColor
                     editable.setSpan(
                         ImportPreviewColorSpan(color),
                         lineStart + bounds.first,
@@ -820,32 +822,32 @@ class MainFragment :
         return if (start < end) start to end else null
     }
 
-    private fun importNewItemsAndActivateKnownItems(knownNames: List<String>, newNames: List<String>) {
-        if (newNames.isEmpty()) {
-            activateImportedItems(knownNames)
+    private fun importNewItemsAndActivateKnownItems(knownItems: List<ItemInput>, newItems: List<ItemInput>) {
+        if (newItems.isEmpty()) {
+            activateImportedItems(knownItems)
             return
         }
 
-        importNewItems(newNames) { result ->
+        importNewItems(newItems) { result ->
             result.onSuccess {
-                activateImportedItems(knownNames)
+                activateImportedItems(knownItems)
             }
         }
     }
 
-    private fun activateImportedItems(names: List<String>) {
-        if (names.isEmpty()) {
+    private fun activateImportedItems(items: List<ItemInput>) {
+        if (items.isEmpty()) {
             return
         }
-        viewModel.activateItemsByNames(names) { result ->
+        viewModel.activateItemsByIdentity(items) { result ->
             result.onFailure {
                 Snackbar.make(binding.root, R.string.error_occurred, Snackbar.LENGTH_SHORT).show()
             }
         }
     }
 
-    private fun importNewItems(names: List<String>, onResult: ((Result<Int>) -> Unit)? = null) {
-        if (names.isEmpty()) {
+    private fun importNewItems(items: List<ItemInput>, onResult: ((Result<Int>) -> Unit)? = null) {
+        if (items.isEmpty()) {
             Snackbar.make(
                 binding.root,
                 resources.getQuantityString(R.plurals.items_imported, 0, 0),
@@ -861,7 +863,7 @@ class MainFragment :
             .create()
         progressDialog.show()
 
-        viewModel.importItems(names) { result ->
+        viewModel.importItems(items) { result ->
             progressDialog.dismiss()
             result.onSuccess { count ->
                 Snackbar.make(
