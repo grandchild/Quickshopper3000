@@ -463,10 +463,9 @@ fn run() -> Result<(), CliError> {
 fn parse_share_link(link: &str) -> Option<(String, String)> {
     let (scheme, rest) = if let Some(r) = link.strip_prefix("qs3ks://") {
         ("https", r)
-    } else if let Some(r) = link.strip_prefix("qs3k://") {
-        ("http", r)
     } else {
-        return None;
+        let rest = link.strip_prefix("qs3k://")?;
+        ("http", rest)
     };
     let slash = rest.rfind('/')?;
     let host_path = &rest[..slash];
@@ -569,7 +568,7 @@ fn cmd_search(
         .map(|(uuid, name)| (name.clone(), state.state_of(uuid).to_string()))
         .collect();
 
-    results.sort_unstable_by(|a, b| fold(&a.0).cmp(&fold(&b.0)));
+    results.sort_unstable_by_key(|item| fold(&item.0));
 
     if results.is_empty() {
         println!("(no matches)");
@@ -628,13 +627,10 @@ fn cmd_complete(
                 .items
                 .iter()
                 .map(|(uuid, name)| {
-                    format!(
-                        "{} {name}",
-                        state_symbol(&state.state_of(uuid).to_string())
-                    )
+                    format!("{} {name}", state_symbol(state.state_of(uuid)))
                 })
                 .collect();
-            lines.sort_unstable_by(|a, b| fold(a).cmp(&fold(b)));
+            lines.sort_unstable_by_key(|line| fold(line));
             let data = lines.join("\n");
             if let Ok(mut f) = fs::File::create(&cache_path) {
                 let _ = f.write_all(data.as_bytes());
@@ -645,7 +641,7 @@ fn cmd_complete(
 
     let prefix_folded = fold(prefix);
     for line in output.lines() {
-        let name = line.splitn(2, ' ').nth(1).unwrap_or("");
+        let name = line.split_once(' ').map_or("", |(_, name)| name);
         if prefix_folded.is_empty() || fold(name).contains(&prefix_folded) {
             println!("{line}");
         }
@@ -797,7 +793,7 @@ fn cmd_show(
         return Ok(());
     }
 
-    active.sort_unstable_by(|a, b| fold(a).cmp(&fold(b)));
+    active.sort_unstable_by_key(|name| fold(name));
     for name in active {
         println!("{name}");
     }
@@ -923,7 +919,7 @@ fn cmd_add(
 
     for name in item_names {
         match state.find_by_name(name) {
-            Some((_uuid, canonical_name, current_state)) if current_state == "ACTIVATED" => {
+            Some((_uuid, canonical_name, "ACTIVATED")) => {
                 actions.push((canonical_name.to_string(), "already active"));
             }
             Some((uuid, canonical_name, current_state)) => {
