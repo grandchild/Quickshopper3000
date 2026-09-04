@@ -53,6 +53,9 @@
         android:focusable="true"
         android:background="?attr/selectableItemBackground"
         android:padding="8dp"
+        android:drawableStart="@drawable/ic_share"
+        android:drawablePadding="8dp"
+        app:drawableTint="?android:attr/textColorPrimary"
     />
 
     <com.google.android.material.textfield.TextInputLayout
