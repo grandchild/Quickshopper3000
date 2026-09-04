@@ -421,19 +421,16 @@ fn track_device_sync(
     conn: &Connection,
     list_id: &str,
     device_id: &str,
-    server_ulid: &str,
+    last_synced_ulid: Option<&str>,
 ) -> ApiResult<()> {
     let now = get_current_timestamp();
     conn.execute(
         "INSERT INTO device_sync (list_id, device_id, last_synced_ulid, updated_at)
          VALUES (?1, ?2, ?3, ?4)
          ON CONFLICT(list_id, device_id) DO UPDATE SET
-            last_synced_ulid = CASE
-                WHEN excluded.last_synced_ulid > device_sync.last_synced_ulid THEN excluded.last_synced_ulid
-                ELSE device_sync.last_synced_ulid
-            END,
+            last_synced_ulid = excluded.last_synced_ulid,
             updated_at = excluded.updated_at",
-        params![list_id, device_id, server_ulid, now],
+        params![list_id, device_id, last_synced_ulid, now],
     )
     .map_err(db_error)?;
     Ok(())
@@ -1346,10 +1343,6 @@ fn route_request(
                 server_ulids.push(server_ulid);
             }
 
-            if let Some(last_ulid) = server_ulids.last() {
-                track_device_sync(&conn, list_uuid, &intents[0].device_id, last_ulid)?;
-            }
-
             conn.execute_batch("COMMIT").map_err(db_error)?;
 
             json_response(&serde_json::json!({
@@ -1369,6 +1362,14 @@ fn route_request(
                         let (_, snapshot) = get_snapshot(&conn, list_uuid)?;
                         let subsequent =
                             load_intents_since(&conn, list_uuid, snap_ulid)?;
+                        if let Some(device_id) = query_params.get("device_id") {
+                            track_device_sync(
+                                &conn,
+                                list_uuid,
+                                device_id,
+                                Some(since),
+                            )?;
+                        }
                         return json_response(&SnapshotResponse {
                             snapshot_ulid,
                             snapshot,
@@ -1384,6 +1385,9 @@ fn route_request(
                         list_uuid,
                         snapshot_ulid.as_deref().unwrap_or(""),
                     )?;
+                    if let Some(device_id) = query_params.get("device_id") {
+                        track_device_sync(&conn, list_uuid, device_id, None)?;
+                    }
                     return json_response(&SnapshotResponse {
                         snapshot_ulid,
                         snapshot,
@@ -1400,6 +1404,14 @@ fn route_request(
                 });
             }
 
+            if let Some(device_id) = query_params.get("device_id") {
+                track_device_sync(
+                    &conn,
+                    list_uuid,
+                    device_id,
+                    query_params.get("since").map(String::as_str),
+                )?;
+            }
             json_response(&intents)
         }
 
@@ -1566,6 +1578,38 @@ mod tests {
     }
 
     type TestResultValue = Result<serde_json::Value, Box<dyn Error + Send + Sync>>;
+
+    #[test]
+    fn tracks_the_cursor_reported_by_a_device() -> TestResult {
+        let conn = Connection::open_in_memory()?;
+        create_tables(&conn).map_err(|error| test_error(error.to_string()))?;
+        let list_id = "list";
+        let device_id = "device";
+        let first = test_ulid(1);
+        let second = test_ulid(2);
+
+        track_device_sync(&conn, list_id, device_id, Some(&second))
+            .map_err(|error| test_error(error.message))?;
+        track_device_sync(&conn, list_id, device_id, Some(&first))
+            .map_err(|error| test_error(error.message))?;
+
+        let cursor: Option<String> = conn.query_row(
+            "SELECT last_synced_ulid FROM device_sync WHERE list_id = ?1 AND device_id = ?2",
+            params![list_id, device_id],
+            |row| row.get(0),
+        )?;
+        assert_eq!(cursor.as_deref(), Some(first.as_str()));
+
+        track_device_sync(&conn, list_id, device_id, None)
+            .map_err(|error| test_error(error.message))?;
+        let cursor: Option<String> = conn.query_row(
+            "SELECT last_synced_ulid FROM device_sync WHERE list_id = ?1 AND device_id = ?2",
+            params![list_id, device_id],
+            |row| row.get(0),
+        )?;
+        assert_eq!(cursor, None);
+        Ok(())
+    }
 
     #[test]
     fn forced_compaction_keeps_only_current_item_order() -> TestResult {
