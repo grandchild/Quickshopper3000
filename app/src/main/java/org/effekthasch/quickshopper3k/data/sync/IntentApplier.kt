@@ -27,6 +27,8 @@ class IntentApplier(
             is SyncIntent.AddItem -> addItem(intent)
             is SyncIntent.DeleteItem -> deleteItem(intent, serverUlid)
             is SyncIntent.RenameItem -> renameItem(intent)
+            is SyncIntent.SetItemDescription -> setItemDescription(intent)
+            is SyncIntent.SetItemSynonyms -> setItemSynonyms(intent)
             is SyncIntent.SetItemState -> setItemState(intent)
             is SyncIntent.SetItemAmount -> setItemAmount(intent)
             is SyncIntent.AddStore -> addStore(intent)
@@ -34,8 +36,8 @@ class IntentApplier(
             is SyncIntent.UpdateStore -> updateStore(intent)
             is SyncIntent.SetAvailability -> setAvailability(intent)
             is SyncIntent.SetItemOrder -> setItemOrder(intent)
-            is SyncIntent.BulkAddItems -> intent.items.forEach { (uuid, name) ->
-                apply(SyncIntent.AddItem(uuid, name), serverUlid)
+            is SyncIntent.BulkAddItems -> intent.items.forEach { item ->
+                apply(item, serverUlid)
             }
 
             is SyncIntent.BulkSetState -> intent.itemUuids.forEach { uuid ->
@@ -48,7 +50,15 @@ class IntentApplier(
         if (syncDao.isTombstoned(intent.itemUuid) != null) return
         if (itemDao.getItemByUuid(intent.itemUuid) != null) return
         val now = Ulid.timestamp(intent.itemUuid)
-        itemDao.insertItem(ItemEntity(uuid = intent.itemUuid, name = intent.name, createdAt = now))
+        itemDao.insertItem(
+            ItemEntity(
+                uuid = intent.itemUuid,
+                name = intent.name,
+                description = intent.description,
+                synonyms = intent.synonyms,
+                createdAt = now
+            )
+        )
     }
 
     private suspend fun deleteItem(intent: SyncIntent.DeleteItem, serverUlid: String) {
@@ -62,6 +72,18 @@ class IntentApplier(
         if (syncDao.isTombstoned(intent.itemUuid) != null) return
         val item = itemDao.getItemByUuid(intent.itemUuid) ?: return
         itemDao.updateItem(item.copy(name = intent.name))
+    }
+
+    private suspend fun setItemDescription(intent: SyncIntent.SetItemDescription) {
+        if (syncDao.isTombstoned(intent.itemUuid) != null) return
+        val item = itemDao.getItemByUuid(intent.itemUuid) ?: return
+        itemDao.updateItem(item.copy(description = intent.description))
+    }
+
+    private suspend fun setItemSynonyms(intent: SyncIntent.SetItemSynonyms) {
+        if (syncDao.isTombstoned(intent.itemUuid) != null) return
+        val item = itemDao.getItemByUuid(intent.itemUuid) ?: return
+        itemDao.updateItem(item.copy(synonyms = intent.synonyms))
     }
 
     private suspend fun setItemState(intent: SyncIntent.SetItemState) {

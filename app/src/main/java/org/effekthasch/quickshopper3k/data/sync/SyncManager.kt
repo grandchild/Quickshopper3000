@@ -174,7 +174,14 @@ class SyncManager(
 
         val items = itemDao.getAllItems()
         for (item in items) {
-            emitter.emit(SyncIntent.AddItem(item.uuid, item.name))
+            emitter.emit(
+                SyncIntent.AddItem(
+                    item.uuid,
+                    item.name,
+                    item.description,
+                    item.synonyms
+                )
+            )
             if (item.amount != 1) {
                 emitter.emit(SyncIntent.SetItemAmount(item.uuid, item.amount))
             }

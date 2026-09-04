@@ -7,9 +7,19 @@ sealed interface SyncIntent {
     val type: String
     fun payloadToJson(): JSONObject
 
-    data class AddItem(val itemUuid: String, val name: String) : SyncIntent {
+    data class AddItem(
+        val itemUuid: String,
+        val name: String,
+        val description: String = "",
+        val synonyms: String = ""
+    ) : SyncIntent {
         override val type get() = "add_item"
-        override fun payloadToJson() = jsonOf("item_uuid" to itemUuid, "name" to name)
+        override fun payloadToJson() = jsonOf(
+            "item_uuid" to itemUuid,
+            "name" to name,
+            "description" to description,
+            "synonyms" to synonyms
+        )
     }
 
     data class DeleteItem(val itemUuid: String) : SyncIntent {
@@ -20,6 +30,16 @@ sealed interface SyncIntent {
     data class RenameItem(val itemUuid: String, val name: String) : SyncIntent {
         override val type get() = "rename_item"
         override fun payloadToJson() = jsonOf("item_uuid" to itemUuid, "name" to name)
+    }
+
+    data class SetItemDescription(val itemUuid: String, val description: String) : SyncIntent {
+        override val type get() = "set_item_description"
+        override fun payloadToJson() = jsonOf("item_uuid" to itemUuid, "description" to description)
+    }
+
+    data class SetItemSynonyms(val itemUuid: String, val synonyms: String) : SyncIntent {
+        override val type get() = "set_item_synonyms"
+        override fun payloadToJson() = jsonOf("item_uuid" to itemUuid, "synonyms" to synonyms)
     }
 
     data class SetItemState(val itemUuid: String, val state: String, val previousState: String) : SyncIntent {
@@ -60,10 +80,10 @@ sealed interface SyncIntent {
             jsonOf("store_uuid" to storeUuid, "item_uuid" to itemUuid, "sort_order" to sortOrder)
     }
 
-    data class BulkAddItems(val items: List<Pair<String, String>>) : SyncIntent {
+    data class BulkAddItems(val items: List<AddItem>) : SyncIntent {
         override val type get() = "bulk_add_items"
         override fun payloadToJson() = JSONObject().put("items", JSONArray().apply {
-            items.forEach { (uuid, name) -> put(jsonOf("item_uuid" to uuid, "name" to name)) }
+            items.forEach { put(it.payloadToJson()) }
         })
     }
 
@@ -76,9 +96,22 @@ sealed interface SyncIntent {
 
     companion object {
         private val PARSERS: Map<String, (JSONObject) -> SyncIntent> = mapOf(
-            "add_item" to { p -> AddItem(p.str("item_uuid"), p.str("name")) },
+            "add_item" to { p ->
+                AddItem(
+                    p.str("item_uuid"),
+                    p.str("name"),
+                    p.optString("description"),
+                    p.optString("synonyms")
+                )
+            },
             "delete_item" to { p -> DeleteItem(p.str("item_uuid")) },
             "rename_item" to { p -> RenameItem(p.str("item_uuid"), p.str("name")) },
+            "set_item_description" to { p ->
+                SetItemDescription(p.str("item_uuid"), p.str("description"))
+            },
+            "set_item_synonyms" to { p ->
+                SetItemSynonyms(p.str("item_uuid"), p.str("synonyms"))
+            },
             "set_item_state" to { p -> SetItemState(p.str("item_uuid"), p.str("state"), p.str("previous_state")) },
             "set_item_amount" to { p -> SetItemAmount(p.str("item_uuid"), p.getInt("amount")) },
             "add_store" to { p -> AddStore(p.str("store_uuid"), p.str("name"), p.getBoolean("specialty")) },
@@ -96,7 +129,12 @@ sealed interface SyncIntent {
                 val arr = p.getJSONArray("items")
                 BulkAddItems((0 until arr.length()).map { i ->
                     val o = arr.getJSONObject(i)
-                    o.str("item_uuid") to o.str("name")
+                    AddItem(
+                        o.str("item_uuid"),
+                        o.str("name"),
+                        o.optString("description"),
+                        o.optString("synonyms")
+                    )
                 })
             },
             "bulk_set_state" to { p ->

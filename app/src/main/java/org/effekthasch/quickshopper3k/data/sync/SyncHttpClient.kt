@@ -21,12 +21,13 @@ class SyncHttpClient(private val baseUrl: String) {
         val query = buildList {
             sinceUlid?.let { add("since=$it") }
             add("device_id=$deviceId")
+            add("sync_protocol=$SYNC_PROTOCOL")
         }.joinToString("&")
         return request("GET", "/list/$listUuid/intents?$query", null)
     }
 
     fun getSnapshot(listUuid: String): Result<JSONObject> {
-        return request("GET", "/list/$listUuid/snapshot", null)
+        return request("GET", "/list/$listUuid/snapshot?sync_protocol=$SYNC_PROTOCOL", null)
             .mapCatching { JSONObject(it.body) }
     }
 
@@ -80,4 +81,8 @@ class SyncHttpClient(private val baseUrl: String) {
     }
 
     class HttpException(val code: Int, val body: String) : IOException("HTTP $code: $body")
+
+    companion object {
+        const val SYNC_PROTOCOL = 1
+    }
 }

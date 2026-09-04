@@ -21,13 +21,24 @@ class SnapshotApplier(
             val obj = items!!.getJSONObject(i)
             val uuid = obj.getString("item_uuid")
             val existing = itemDao.getItemByUuid(uuid)
-            val id = existing?.id ?: itemDao.insertItem(
-                ItemEntity(uuid = uuid, name = obj.getString("name"), createdAt = obj.getLong("created_at"))
+            val snapshotItem = ItemEntity(
+                id = existing?.id ?: 0,
+                uuid = uuid,
+                name = obj.getString("name"),
+                description = obj.optString("description"),
+                synonyms = obj.optString("synonyms"),
+                createdAt = obj.getLong("created_at"),
+                amount = obj.getInt("amount")
             )
+            val id = if (existing == null) {
+                itemDao.insertItem(snapshotItem)
+            } else {
+                itemDao.updateItem(snapshotItem)
+                existing.id
+            }
             val state = obj.getString("state")
             if (state != "ACTIVATED") itemDao.setItemState(id, state)
-            val amount = obj.getInt("amount")
-            if (amount != 1) itemDao.updateItemAmount(id, amount)
+
         }
 
         val stores = snapshot.optJSONArray("stores")

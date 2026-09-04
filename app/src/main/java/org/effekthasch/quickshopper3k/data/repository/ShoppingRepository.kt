@@ -151,6 +151,12 @@ class ShoppingRepository(private val database: AppDatabase) {
             if (item.name != name) {
                 emitter.emit(SyncIntent.RenameItem(item.uuid, name))
             }
+            if (item.description != description) {
+                emitter.emit(SyncIntent.SetItemDescription(item.uuid, description))
+            }
+            if (item.synonyms != synonyms) {
+                emitter.emit(SyncIntent.SetItemSynonyms(item.uuid, synonyms))
+            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -412,7 +418,13 @@ class ShoppingRepository(private val database: AppDatabase) {
                 recordItemAdded(id, timestamp, historyDays)
             }
 
-            emitter.emit(SyncIntent.BulkAddItems(uuids.zip(items.map { it.name })))
+            emitter.emit(
+                SyncIntent.BulkAddItems(
+                    uuids.zip(items).map { (uuid, item) ->
+                        SyncIntent.AddItem(uuid, item.name, item.description)
+                    }
+                )
+            )
 
             Result.success(ids.size)
         } catch (e: Exception) {

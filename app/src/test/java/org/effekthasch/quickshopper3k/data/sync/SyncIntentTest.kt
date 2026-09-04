@@ -27,9 +27,20 @@ class SyncIntentTest {
 
     @Test
     fun addItemRoundTrips() {
-        val original = envelope(SyncIntent.AddItem("item-uuid-1", "Milk"))
+        val original = envelope(SyncIntent.AddItem("item-uuid-1", "Milk", "oat", "drink"))
         val restored = roundTrip(original)
         assertEquals(original, restored)
+    }
+
+    @Test
+    fun legacyAddItemDefaultsMetadataToEmpty() {
+        val payload = JSONObject()
+            .put("item_uuid", "item-uuid-1")
+            .put("name", "Milk")
+        assertEquals(
+            SyncIntent.AddItem("item-uuid-1", "Milk"),
+            SyncIntent.fromPayload("add_item", payload)
+        )
     }
 
     @Test
@@ -42,6 +53,20 @@ class SyncIntentTest {
     @Test
     fun renameItemRoundTrips() {
         val original = envelope(SyncIntent.RenameItem("item-uuid-1", "Oat Milk"))
+        val restored = roundTrip(original)
+        assertEquals(original, restored)
+    }
+
+    @Test
+    fun setItemDescriptionRoundTrips() {
+        val original = envelope(SyncIntent.SetItemDescription("item-uuid-1", "smoked"))
+        val restored = roundTrip(original)
+        assertEquals(original, restored)
+    }
+
+    @Test
+    fun setItemSynonymsRoundTrips() {
+        val original = envelope(SyncIntent.SetItemSynonyms("item-uuid-1", "bean curd"))
         val restored = roundTrip(original)
         assertEquals(original, restored)
     }
@@ -104,7 +129,11 @@ class SyncIntentTest {
 
     @Test
     fun bulkAddItemsRoundTrips() {
-        val items = listOf("uuid-1" to "Bread", "uuid-2" to "Butter", "uuid-3" to "Eggs")
+        val items = listOf(
+            SyncIntent.AddItem("uuid-1", "Bread", "rye"),
+            SyncIntent.AddItem("uuid-2", "Butter"),
+            SyncIntent.AddItem("uuid-3", "Eggs", synonyms = "ova")
+        )
         val original = envelope(SyncIntent.BulkAddItems(items))
         val restored = roundTrip(original)
         assertEquals(original, restored)
@@ -193,6 +222,8 @@ class SyncIntentTest {
             SyncIntent.AddItem("", "") to "add_item",
             SyncIntent.DeleteItem("") to "delete_item",
             SyncIntent.RenameItem("", "") to "rename_item",
+            SyncIntent.SetItemDescription("", "") to "set_item_description",
+            SyncIntent.SetItemSynonyms("", "") to "set_item_synonyms",
             SyncIntent.SetItemState("", "", "") to "set_item_state",
             SyncIntent.SetItemAmount("", 0) to "set_item_amount",
             SyncIntent.AddStore("", "", false) to "add_store",
@@ -225,5 +256,7 @@ class SyncIntentTest {
         assertEquals("add_item", json.getString("type"))
         assertEquals("i1", json.getJSONObject("payload").getString("item_uuid"))
         assertEquals("Cheese", json.getJSONObject("payload").getString("name"))
+        assertEquals("", json.getJSONObject("payload").getString("description"))
+        assertEquals("", json.getJSONObject("payload").getString("synonyms"))
     }
 }
