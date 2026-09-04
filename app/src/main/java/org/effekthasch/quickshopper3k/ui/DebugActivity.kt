@@ -23,9 +23,7 @@ import kotlinx.coroutines.withContext
 import org.effekthasch.quickshopper3k.R
 import org.effekthasch.quickshopper3k.data.local.AppDatabase
 import org.effekthasch.quickshopper3k.data.sync.SyncHttpClient
-import org.effekthasch.quickshopper3k.data.sync.SyncStats
 import org.effekthasch.quickshopper3k.util.PreferencesManager
-import android.widget.Button
 import org.json.JSONObject
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -78,44 +76,10 @@ class DebugActivity : AppCompatActivity() {
             }
         })
 
-        val syncStatsText = findViewById<TextView>(R.id.debugSyncStatsText)
-        val resetStatsButton = findViewById<Button>(R.id.debugResetStatsButton)
-        refreshSyncStats(syncStatsText, resetStatsButton)
-
-        resetStatsButton.setOnClickListener {
-            SyncStats.reset()
-            refreshSyncStats(syncStatsText, resetStatsButton)
-        }
 
         loadDebug(prefs.listId, statusText)
     }
 
-    private fun refreshSyncStats(statsText: TextView, resetButton: Button) {
-        val summary = SyncStats.getSummary()
-        if (summary.isEmpty()) {
-            statsText.visibility = View.GONE
-            resetButton.visibility = View.GONE
-            return
-        }
-
-        val (pushTotal, pullTotal, pollTotal) = SyncStats.getTotals()
-        val pollCount = SyncStats.getPollCount()
-        val sb = StringBuilder()
-        sb.appendLine("── Sync Data Usage ──")
-        sb.appendLine("Push: ${SyncStats.formatBytes(pushTotal)}  Pull: ${SyncStats.formatBytes(pullTotal)}")
-        sb.appendLine("Poll overhead: ${SyncStats.formatBytes(pollTotal)} ($pollCount polls)")
-        sb.appendLine()
-
-        val sorted = summary.entries.sortedByDescending { it.value.pushBytes + it.value.pullBytes }
-        for ((type, e) in sorted) {
-            sb.appendLine("$type")
-            sb.appendLine("  ↑ ${e.pushCount}× ${SyncStats.formatBytes(e.pushBytes)}  ↓ ${e.pullCount}× ${SyncStats.formatBytes(e.pullBytes)}")
-        }
-
-        statsText.text = sb.toString().trimEnd()
-        statsText.visibility = View.VISIBLE
-        resetButton.visibility = View.VISIBLE
-    }
 
     private fun loadDebug(listId: String, statusText: TextView) {
         val baseUrl = prefs.syncServerUri

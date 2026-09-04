@@ -103,16 +103,6 @@ class SyncManager(
                 return
             }
 
-            val httpResult = result.getOrElse { return }
-            val intentCount = envelopes.length()
-            if (intentCount > 0) {
-                val bytesPerIntent = httpResult.bytesSent / intentCount
-                for (i in 0 until intentCount) {
-                    val type = envelopes.getJSONObject(i).optString("type", "unknown")
-                    SyncStats.recordPush(type, bytesPerIntent)
-                }
-            }
-
             syncDao.markSynced(batch.map { it.id })
             syncDao.purgeSynced()
             totalPushed += batch.size
@@ -123,20 +113,17 @@ class SyncManager(
     private suspend fun pull(client: SyncHttpClient, listId: String, deviceId: String) {
         val sinceUlid = syncDao.getSyncState(KEY_LAST_SYNCED_ULID)
 
-        client.getIntents(listId, sinceUlid, deviceId).onSuccess { httpResult ->
-            SyncStats.recordPollOverhead(httpResult.bytesReceived)
-            val array = parseIntentsResponse(httpResult.body)
+        client.getIntents(listId, sinceUlid, deviceId).onSuccess { response ->
+            val array = parseIntentsResponse(response.body)
             var latestUlid = sinceUlid
             for (i in 0 until array.length()) {
                 val json = array.getJSONObject(i)
-                val type = json.optString("type", "unknown")
                 val envelope = SyncIntentSerializer.fromJson(json) ?: continue
                 val serverUlid = envelope.serverUlid ?: continue
                 if (envelope.deviceId == deviceId) {
                     latestUlid = serverUlid
                     continue
                 }
-                SyncStats.recordPull(type, json.toString().length.toLong())
                 applier.apply(envelope.intent, serverUlid)
                 latestUlid = serverUlid
             }
@@ -168,11 +155,9 @@ class SyncManager(
         var latestUlid: String? = null
         for (i in 0 until array.length()) {
             val json = array.getJSONObject(i)
-            val type = json.optString("type", "unknown")
             val envelope = SyncIntentSerializer.fromJson(json) ?: continue
             val serverUlid = envelope.serverUlid ?: continue
             if (envelope.deviceId != deviceId) {
-                SyncStats.recordPull(type, json.toString().length.toLong())
                 applier.apply(envelope.intent, serverUlid)
             }
             latestUlid = serverUlid

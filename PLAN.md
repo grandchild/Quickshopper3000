@@ -105,7 +105,7 @@ org.effekthasch.quickshopper3k/
 │   ├── local/ (AppDatabase, DAOs, entities incl. sync tables)
 │   ├── repository/ (ShoppingRepository)
 │   └── sync/ (SyncManager, SyncIntent, IntentApplier, SnapshotApplier,
-│               IntentEmitter, SyncHttpClient, SyncStats)
+│               IntentEmitter, SyncHttpClient)
 ├── domain/model/ (Item, ItemState, Store, StoreItem)
 ├── ui/
 │   ├── MainActivity.kt
