@@ -1061,12 +1061,14 @@ fn compact_list_internal(
         latest_ulid
     } else {
         let backlog_count: usize = if let Some(ref hwm) = min_non_stale_hwm {
-            conn.query_row(
-                "SELECT COUNT(*) FROM intent WHERE list_id = ?1 AND server_ulid > ?2",
-                params![list_id, hwm],
-                |row| row.get(0),
-            )
-            .map_err(db_error)?
+            let count: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM intent WHERE list_id = ?1 AND server_ulid > ?2",
+                    params![list_id, hwm],
+                    |row| row.get(0),
+                )
+                .map_err(db_error)?;
+            count as usize
         } else {
             0
         };
@@ -1219,14 +1221,13 @@ fn route_request(
             let mut stmt = conn
                 .prepare("SELECT COUNT(*) FROM intent WHERE list_id = ?1")
                 .map_err(db_error)?;
-            let current_count: usize = stmt
+            let current_count: i64 = stmt
                 .query_row(params![list_uuid], |row| row.get(0))
                 .map_err(db_error)?;
 
-            let incoming_count = intents.len();
-            let total_intents = current_count + incoming_count;
+            let total_intents = current_count + intents.len() as i64;
 
-            if total_intents > MAX_TOTAL_INTENTS {
+            if total_intents > MAX_TOTAL_INTENTS as i64 {
                 return Err(ErrorInfo {
                     status: 413,
                     message: format!(
@@ -1652,7 +1653,7 @@ mod tests {
         assert_eq!(compacted_order, vec![b.clone(), a.clone(), d.clone(), c.clone()]);
         assert_eq!(order.len(), 4);
 
-        let remaining_intents: usize = conn.query_row(
+        let remaining_intents: i64 = conn.query_row(
             "SELECT COUNT(*) FROM intent WHERE list_id = ?1",
             params![list_id],
             |row| row.get(0),
