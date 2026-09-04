@@ -184,7 +184,11 @@ private sealed class DebugRow {
         val compacted: Boolean,
     ) : DebugRow()
 
-    data class DeviceSeparator(val deviceId: String, val isThis: Boolean) : DebugRow()
+    data class DeviceSeparator(
+        val deviceId: String,
+        val isThis: Boolean,
+        val lastSyncedUlid: String?,
+    ) : DebugRow()
 }
 
 private fun buildRows(
@@ -200,36 +204,54 @@ private fun buildRows(
         rows.add(DebugRow.SnapshotHeader(snapshotUlid, ulidAgo(snapshotUlid)))
     }
 
-    val intents = json.optJSONArray("intents")
-    if (intents != null) {
-        for (i in 0 until intents.length()) {
-            val obj = intents.optJSONObject(i) ?: continue
-            val payload = obj.optJSONObject("payload")
-            val itemUuid = payload?.optString("item_uuid")?.takeIf { it.isNotEmpty() }
-            val storeUuid = payload?.optString("store_uuid")?.takeIf { it.isNotEmpty() }
-            rows.add(
-                DebugRow.IntentRow(
-                    serverUlid = obj.optString("server_ulid").takeIf { it.isNotEmpty() },
-                    deviceId = obj.optString("device_id"),
-                    type = obj.optString("intent_type").takeIf { it.isNotEmpty() }
-                        ?: obj.optString("type"),
-                    payload = payload,
-                    resolvedName = itemUuid?.let { itemNames[it] },
-                    resolvedStoreName = storeUuid?.let { storeNames[it] },
-                    compacted = false,
+    val intents = json.optJSONArray("intents") ?: org.json.JSONArray()
+    val devices = buildList {
+        val array = json.optJSONArray("devices") ?: return@buildList
+        for (i in 0 until array.length()) {
+            val device = array.optJSONObject(i) ?: continue
+            val deviceId = device.optString("device_id")
+            if (deviceId.isEmpty()) continue
+            add(
+                DebugRow.DeviceSeparator(
+                    deviceId = deviceId,
+                    isThis = deviceId == thisDeviceId,
+                    lastSyncedUlid = device.optString("last_synced_ulid").takeIf { it.isNotEmpty() },
                 )
             )
         }
-    }
+    }.sortedBy { it.deviceId }
 
-    val devices = json.optJSONArray("devices")
-    if (devices != null) {
-        for (i in 0 until devices.length()) {
-            val d = devices.optJSONObject(i) ?: continue
-            val deviceId = d.optString("device_id")
-            rows.add(DebugRow.DeviceSeparator(deviceId, deviceId == thisDeviceId))
-        }
+    val snapshotDevices = devices.filter { device ->
+        val lastSyncedUlid = device.lastSyncedUlid
+        lastSyncedUlid == null || snapshotUlid != null && lastSyncedUlid <= snapshotUlid
     }
+    rows.addAll(snapshotDevices)
+    val devicesByUlid = devices
+        .filterNot { it in snapshotDevices }
+        .groupBy { it.lastSyncedUlid }
+        .toMutableMap()
+
+    for (i in 0 until intents.length()) {
+        val obj = intents.optJSONObject(i) ?: continue
+        val payload = obj.optJSONObject("payload")
+        val itemUuid = payload?.optString("item_uuid")?.takeIf { it.isNotEmpty() }
+        val storeUuid = payload?.optString("store_uuid")?.takeIf { it.isNotEmpty() }
+        val serverUlid = obj.optString("server_ulid").takeIf { it.isNotEmpty() }
+        rows.add(
+            DebugRow.IntentRow(
+                serverUlid = serverUlid,
+                deviceId = obj.optString("device_id"),
+                type = obj.optString("intent_type").takeIf { it.isNotEmpty() }
+                    ?: obj.optString("type"),
+                payload = payload,
+                resolvedName = itemUuid?.let { itemNames[it] },
+                resolvedStoreName = storeUuid?.let { storeNames[it] },
+                compacted = false,
+            )
+        )
+        if (serverUlid != null) rows.addAll(devicesByUlid.remove(serverUlid).orEmpty())
+    }
+    rows.addAll(devicesByUlid.values.flatten())
 
     return rows
 }
@@ -445,8 +467,10 @@ private class DebugAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     private class DeviceVH(view: View) : RecyclerView.ViewHolder(view) {
         val label: TextView = view.findViewById(R.id.deviceLabel)
         fun bind(row: DebugRow.DeviceSeparator) {
-            label.text = if (row.isThis) "${row.deviceId.takeLast(12)}  (this)"
-            else row.deviceId.takeLast(12)
+            val deviceId = row.deviceId.takeLast(12)
+            val suffix = if (row.isThis) "  (this)" else ""
+            val status = if (row.lastSyncedUlid == null) "not yet synced" else "synced through here"
+            label.text = "$deviceId$suffix  ·  $status"
         }
     }
 }

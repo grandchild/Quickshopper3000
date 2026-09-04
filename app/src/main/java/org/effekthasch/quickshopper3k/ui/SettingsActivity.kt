@@ -181,7 +181,11 @@ class SettingsActivity : AppCompatActivity() {
         val serverResult = withContext(Dispatchers.IO) {
             runCatching {
                 val client = SyncHttpClient(pending.serverUrl)
-                val httpResult = client.getIntents(pending.listId, null).getOrThrow()
+                val httpResult = client.getIntents(
+                    pending.listId,
+                    null,
+                    prefsManager.deviceId,
+                ).getOrThrow()
                 val body = httpResult.body
                 val parsed = org.json.JSONObject(body)
                 if (parsed.has("intents")) parsed.getJSONArray("intents") else org.json.JSONArray(body)

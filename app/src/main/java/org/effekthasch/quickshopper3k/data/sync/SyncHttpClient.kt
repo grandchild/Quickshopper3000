@@ -17,13 +17,12 @@ class SyncHttpClient(private val baseUrl: String) {
         return request("POST", "/list/$listUuid/intents", intents.toString())
     }
 
-    fun getIntents(listUuid: String, sinceUlid: String?): Result<HttpResult> {
-        val path = if (sinceUlid != null) {
-            "/list/$listUuid/intents?since=$sinceUlid"
-        } else {
-            "/list/$listUuid/intents"
-        }
-        return request("GET", path, null)
+    fun getIntents(listUuid: String, sinceUlid: String?, deviceId: String): Result<HttpResult> {
+        val query = buildList {
+            sinceUlid?.let { add("since=$it") }
+            add("device_id=$deviceId")
+        }.joinToString("&")
+        return request("GET", "/list/$listUuid/intents?$query", null)
     }
 
     fun getSnapshot(listUuid: String): Result<JSONObject> {

@@ -62,14 +62,9 @@ class SyncManager(
                 val hasQueued = queuedCount > 0
 
                 when {
-                    hasWatermark -> {
-                        push(client, listId, deviceId)
+                    hasWatermark || hasQueued -> {
                         pull(client, listId, deviceId)
-                    }
-
-                    hasQueued -> {
                         push(client, listId, deviceId)
-                        pull(client, listId, deviceId)
                     }
 
                     else -> initialSync(client, listId, deviceId)
@@ -118,13 +113,6 @@ class SyncManager(
                 }
             }
 
-            val responseBody = JSONObject(httpResult.body)
-            val serverUlids = responseBody.optJSONArray("server_ulids")
-            if (serverUlids != null && serverUlids.length() > 0) {
-                val lastUlid = serverUlids.getString(serverUlids.length() - 1)
-                syncDao.setSyncState(SyncStateEntity(KEY_LAST_SYNCED_ULID, lastUlid))
-            }
-
             syncDao.markSynced(batch.map { it.id })
             syncDao.purgeSynced()
             totalPushed += batch.size
@@ -135,7 +123,7 @@ class SyncManager(
     private suspend fun pull(client: SyncHttpClient, listId: String, deviceId: String) {
         val sinceUlid = syncDao.getSyncState(KEY_LAST_SYNCED_ULID)
 
-        client.getIntents(listId, sinceUlid).onSuccess { httpResult ->
+        client.getIntents(listId, sinceUlid, deviceId).onSuccess { httpResult ->
             SyncStats.recordPollOverhead(httpResult.bytesReceived)
             val array = parseIntentsResponse(httpResult.body)
             var latestUlid = sinceUlid
@@ -161,7 +149,7 @@ class SyncManager(
     }
 
     private suspend fun initialSync(client: SyncHttpClient, listId: String, deviceId: String) {
-        val remoteResult = client.getIntents(listId, null).getOrElse { e ->
+        val remoteResult = client.getIntents(listId, null, deviceId).getOrElse { e ->
             Log.w(TAG, "Initial sync pull failed", e)
             return
         }
