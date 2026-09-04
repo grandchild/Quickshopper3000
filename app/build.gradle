@@ -3,13 +3,15 @@ plugins {
     id 'com.google.devtools.ksp'
 }
 
-def versionBase = "1.0"
+def unknownVersionFallback = "0.1"
 
 def versionFile = rootProject.file('version.properties')
 def versionProps = new Properties()
 if (versionFile.exists()) versionProps.load(versionFile.newDataInputStream())
+def versionBase = versionProps['version'] ?: unknownVersionFallback
 def buildNum = (versionProps['build'] ?: '0').toInteger() + 1
 versionProps['build'] = buildNum.toString()
+versionProps['version'] = versionBase
 versionProps.store(versionFile.newDataOutputStream(), null)
 
 android {
