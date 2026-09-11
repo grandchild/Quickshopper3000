@@ -14,7 +14,7 @@ import org.effekthasch.quickshopper3k.ui.common.bindItemAmountBadge
 import org.effekthasch.quickshopper3k.ui.common.bindItemText
 
 class MainItemsAdapter(
-    private val onItemClick: () -> Boolean,
+    private val onItemClick: (StoreItem) -> Boolean,
     private val onItemLongClick: (StoreItem, Float, Float) -> Unit,
     private val onStartDrag: (RecyclerView.ViewHolder) -> Unit
 ) : BaseDragAdapter<StoreItem, MainItemsAdapter.MainItemViewHolder>() {
@@ -159,7 +159,7 @@ class MainItemsAdapter(
             binding.root.setOnClickListener {
                 val position = bindingAdapterPosition
                 if (position != RecyclerView.NO_POSITION) {
-                    val shouldSelect = onItemClick()
+                    val shouldSelect = onItemClick(backingItems[position])
                     if (shouldSelect) {
                         toggleSelection(position)
                     }

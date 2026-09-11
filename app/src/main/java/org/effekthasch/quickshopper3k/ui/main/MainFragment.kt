@@ -56,8 +56,12 @@ class MainFragment :
     private class ImportPreviewColorSpan(color: Int) : ForegroundColorSpan(color)
 
     override fun provideAdapter() = MainItemsAdapter(
-        onItemClick = {
-            if (binding.searchContainer.visibility == View.VISIBLE) {
+        onItemClick = { storeItem ->
+            if (binding.searchContainer.visibility == View.VISIBLE &&
+                viewModel.searchQuery.value?.isNotBlank() == true
+            ) {
+                onSwipeRight(storeItem)
+            } else if (binding.searchContainer.visibility == View.VISIBLE) {
                 dismissSearch()
             }
             false
@@ -291,16 +295,14 @@ class MainFragment :
 
         binding.searchInput.setOnFocusChangeListener { _, _ -> }
 
+        binding.root.setOnTouchListener { view, event ->
+            dismissSearchOnTouch(view, event)
+        }
+
         binding.itemsRecyclerView.setOnTouchListener { view, event ->
-            if (binding.searchContainer.visibility == View.VISIBLE &&
-                event.action == android.view.MotionEvent.ACTION_DOWN
-            ) {
-                dismissSearch()
-                view.performClick()
-                true
-            } else {
-                false
-            }
+            val isFilteredItemTap = viewModel.searchQuery.value?.isNotBlank() == true &&
+                    binding.itemsRecyclerView.findChildViewUnder(event.x, event.y) != null
+            if (isFilteredItemTap) false else dismissSearchOnTouch(view, event)
         }
 
         binding.searchInput.addTextChangedListener(object : android.text.TextWatcher {
@@ -313,6 +315,17 @@ class MainFragment :
 
             override fun afterTextChanged(s: android.text.Editable?) {}
         })
+    }
+
+    private fun dismissSearchOnTouch(view: View, event: android.view.MotionEvent): Boolean {
+        if (binding.searchContainer.visibility != View.VISIBLE ||
+            event.action != android.view.MotionEvent.ACTION_DOWN
+        ) {
+            return false
+        }
+        dismissSearch()
+        view.performClick()
+        return true
     }
 
     private fun startKeyboardDismissListener() {
