@@ -3,12 +3,12 @@ all: app api cli
 VERSION=$(shell sed -n 's/^version=//p' version.properties)
 BUILD=$(shell sed -n 's/^build=//p' version.properties)
 TAG=v${VERSION}-${BUILD}
-APK_OUTFILE=app/build/outputs/apk/release/qs3k-${TAG}-release-unsigned.apk
+APK_OUTFILE=app/build/outputs/apk/debug/qs3k-${TAG}-debug-unsigned.apk
 
 app: ${APK_OUTFILE}
 
 ${APK_OUTFILE}:
-	./gradlew assembleRelease
+	./gradlew assembleDebug
 
 api cli:
 	cargo build --release
