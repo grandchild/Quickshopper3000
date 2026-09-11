@@ -23,9 +23,9 @@ release: all
 	git tag -f ${TAG}
 	git push --tags
 	gh release create ${TAG} --verify-tag --draft --generate-notes \
-		$(APK_OUTFILE) \
-		target/release/qs3k-api# \
-		target/release/qs3k
+		"$(APK_OUTFILE)#Android App" \
+		"target/release/qs3k-api#API Server" \
+		"target/release/qs3k#CLI"
 
 clean:
 	./gradlew clean
