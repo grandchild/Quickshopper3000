@@ -963,8 +963,7 @@ class MainFragment :
     }
 
     private fun shareActiveItems() {
-        val items = viewModel.filteredItems.value.orEmpty()
-            .filter { it.item.state == ItemState.ACTIVATED }
+        val items = viewModel.activeItemsForSharing()
 
         if (items.isEmpty()) {
             Snackbar.make(binding.root, R.string.share_active_items_empty, Snackbar.LENGTH_SHORT).show()

@@ -69,6 +69,10 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         }
     }.asLiveData()
 
+    fun activeItemsForSharing(): List<StoreItem> {
+        return items.value.orEmpty().filter { it.item.state == ItemState.ACTIVATED }
+    }
+
     val filteredItems: LiveData<List<StoreItem>> = MediatorLiveData<List<StoreItem>>().apply {
         fun update() {
             val allItems = items.value ?: emptyList()
