@@ -191,8 +191,11 @@ class SettingsActivity : AppCompatActivity() {
                     prefsManager.deviceId,
                 ).getOrThrow()
                 val body = httpResult.body
-                val parsed = org.json.JSONObject(body)
-                if (parsed.has("intents")) parsed.getJSONArray("intents") else org.json.JSONArray(body)
+                when (val parsed = org.json.JSONTokener(body).nextValue()) {
+                    is org.json.JSONObject -> parsed.getJSONArray("intents")
+                    is org.json.JSONArray -> parsed
+                    else -> throw IllegalArgumentException("Unexpected join response")
+                }
             }
         }
 
@@ -251,10 +254,9 @@ class SettingsActivity : AppCompatActivity() {
             prefsManager.syncServerUri = pending.serverUrl
             prefsManager.listId = pending.listId
             prefsManager.exampleItemsInitialized = true
+            prefsManager.flushRecentlyDoneAt = System.currentTimeMillis()
             val synced = syncCurrentList()
-            if (synced) {
-                prefsManager.flushRecentlyDoneAt = System.currentTimeMillis()
-            }
+            prefsManager.flushRecentlyDoneAt = System.currentTimeMillis()
             syncServerUriInput.setText(pending.serverUrl)
             joinListInput.text?.clear()
             findViewById<TextView>(R.id.listIdDisplay).text =
@@ -435,9 +437,10 @@ class SettingsActivity : AppCompatActivity() {
                 progressDialog.dismiss()
 
                 result.onSuccess {
+                    prefsManager.flushRecentlyDoneAt = System.currentTimeMillis()
                     val synced = syncCurrentList()
+                    prefsManager.flushRecentlyDoneAt = System.currentTimeMillis()
                     if (synced) {
-                        prefsManager.flushRecentlyDoneAt = System.currentTimeMillis()
                         Toast.makeText(this@SettingsActivity, R.string.backup_imported, Toast.LENGTH_LONG).show()
                     } else {
                         Toast.makeText(this@SettingsActivity, R.string.error_occurred, Toast.LENGTH_LONG).show()
