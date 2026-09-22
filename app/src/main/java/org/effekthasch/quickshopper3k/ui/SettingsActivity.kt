@@ -12,6 +12,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.room.withTransaction
 import com.google.android.material.button.MaterialButton
 import org.effekthasch.quickshopper3k.ui.DebugActivity
 import com.google.android.material.textfield.TextInputEditText
@@ -234,20 +235,22 @@ class SettingsActivity : AppCompatActivity() {
         val result = withContext(Dispatchers.IO) {
             runCatching {
                 val db = AppDatabase.getDatabase(this@SettingsActivity)
-                db.syncDao().purgeAll()
-                db.syncDao().deleteSyncState("last_synced_ulid")
-                val applier = IntentApplier(db.itemDao(), db.storeDao(), db.syncDao())
-                for (i in 0 until intents.length()) {
-                    val json = intents.getJSONObject(i)
-                    val envelope = SyncIntentSerializer.fromJson(json) ?: continue
-                    val serverUlid = envelope.serverUlid ?: continue
-                    applier.apply(envelope.intent, serverUlid)
+                db.withTransaction {
+                    db.clearAllTables()
+                    val applier = IntentApplier(db.itemDao(), db.storeDao(), db.syncDao())
+                    for (i in 0 until intents.length()) {
+                        val json = intents.getJSONObject(i)
+                        val envelope = SyncIntentSerializer.fromJson(json) ?: continue
+                        val serverUlid = envelope.serverUlid ?: continue
+                        applier.apply(envelope.intent, serverUlid)
+                    }
                 }
             }
         }
         if (result.isSuccess) {
             prefsManager.syncServerUri = pending.serverUrl
             prefsManager.listId = pending.listId
+            prefsManager.exampleItemsInitialized = true
             val synced = syncCurrentList()
             if (synced) {
                 prefsManager.flushRecentlyDoneAt = System.currentTimeMillis()
