@@ -286,7 +286,7 @@ class SettingsActivity : AppCompatActivity() {
         pendingJoin = null
     }
 
-    private suspend fun syncCurrentList(): Boolean {
+    private suspend fun syncCurrentList(replayOwnIntents: Boolean = false): Boolean {
         return withContext(Dispatchers.IO) {
             val database = AppDatabase.getDatabase(this@SettingsActivity)
             SyncManager(
@@ -303,7 +303,7 @@ class SettingsActivity : AppCompatActivity() {
                 historyDaysProvider = { prefsManager.historyDays },
                 mistakeDoneSecondsProvider = { prefsManager.mistakeDoneSeconds },
                 reactivateMinSecondsProvider = { prefsManager.reactivateMinSeconds }
-            ).syncNow()
+            ).syncNow(replayOwnIntents)
         }
     }
 
@@ -456,7 +456,7 @@ class SettingsActivity : AppCompatActivity() {
 
                 result.onSuccess {
                     prefsManager.flushRecentlyDoneAt = System.currentTimeMillis()
-                    val synced = syncCurrentList()
+                    val synced = syncCurrentList(replayOwnIntents = true)
                     prefsManager.flushRecentlyDoneAt = System.currentTimeMillis()
                     if (synced) {
                         Toast.makeText(this@SettingsActivity, R.string.backup_imported, Toast.LENGTH_LONG).show()

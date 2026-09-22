@@ -59,12 +59,12 @@ class SyncManager(
         scope.launch { syncOnce() }
     }
 
-    suspend fun syncNow(): Boolean {
-        if (!syncOnce()) return false
+    suspend fun syncNow(replayOwnIntents: Boolean = false): Boolean {
+        if (!syncOnce(replayOwnIntents)) return false
         return syncOnce()
     }
 
-    private suspend fun syncOnce(): Boolean {
+    private suspend fun syncOnce(replayOwnIntents: Boolean = false): Boolean {
         if (syncing) return false
         syncing = true
         return try {
@@ -83,7 +83,7 @@ class SyncManager(
 
                 when {
                     hasWatermark || hasQueued -> {
-                        pull(client, listId, deviceId) && push(client, listId, deviceId)
+                        pull(client, listId, deviceId, replayOwnIntents) && push(client, listId, deviceId)
                     }
 
                     else -> initialSync(client, listId, deviceId)
@@ -130,20 +130,25 @@ class SyncManager(
         }
     }
 
-    private suspend fun pull(client: SyncHttpClient, listId: String, deviceId: String): Boolean {
+    private suspend fun pull(
+        client: SyncHttpClient,
+        listId: String,
+        deviceId: String,
+        replayOwnIntents: Boolean,
+    ): Boolean {
         val sinceUlid = syncDao.getSyncState(KEY_LAST_SYNCED_ULID)
         val response = client.getIntents(listId, sinceUlid, deviceId).getOrElse { e ->
             Log.w(TAG, "Pull failed", e)
             return false
         }
 
-        val array = parseIntentsResponse(response.body)
+        val parsed = parseIntentsResponse(response.body)
         var latestUlid = sinceUlid
-        for (i in 0 until array.length()) {
-            val json = array.getJSONObject(i)
+        for (i in 0 until parsed.intents.length()) {
+            val json = parsed.intents.getJSONObject(i)
             val envelope = SyncIntentSerializer.fromJson(json) ?: continue
             val serverUlid = envelope.serverUlid ?: continue
-            if (envelope.deviceId == deviceId) {
+            if (envelope.deviceId == deviceId && !replayOwnIntents && !parsed.snapshotApplied) {
                 latestUlid = serverUlid
                 continue
             }
@@ -162,13 +167,13 @@ class SyncManager(
             return false
         }
 
-        val remoteArray = parseIntentsResponse(remoteResult.body)
-        val hasRemoteState = remoteArray.length() > 0 ||
+        val parsed = parseIntentsResponse(remoteResult.body)
+        val hasRemoteState = parsed.snapshotApplied || parsed.intents.length() > 0 ||
                 (syncDao.getSyncState(KEY_LAST_SYNCED_ULID) != null &&
                         database.itemDao().getAllItems().isNotEmpty())
         if (hasRemoteState) {
-            if (remoteArray.length() > 0) {
-                applyRemoteIntents(remoteArray, deviceId)
+            if (parsed.intents.length() > 0) {
+                applyRemoteIntents(parsed.intents)
             }
             if (database.itemDao().getAllItems().isNotEmpty()) {
                 initializeEmptyList()
@@ -178,18 +183,16 @@ class SyncManager(
 
         initializeEmptyList()
         enqueueFullState()
-        return push(client, listId, deviceId) && pull(client, listId, deviceId)
+        return push(client, listId, deviceId) && pull(client, listId, deviceId, false)
     }
 
-    private suspend fun applyRemoteIntents(array: JSONArray, deviceId: String) {
+    private suspend fun applyRemoteIntents(array: JSONArray) {
         var latestUlid: String? = null
         for (i in 0 until array.length()) {
             val json = array.getJSONObject(i)
             val envelope = SyncIntentSerializer.fromJson(json) ?: continue
             val serverUlid = envelope.serverUlid ?: continue
-            if (envelope.deviceId != deviceId) {
-                applier.apply(envelope.intent, serverUlid)
-            }
+            applier.apply(envelope.intent, serverUlid)
             latestUlid = serverUlid
         }
         if (latestUlid != null) {
@@ -244,15 +247,16 @@ class SyncManager(
         }
     }
 
-    private suspend fun parseIntentsResponse(body: String): JSONArray {
+    private suspend fun parseIntentsResponse(body: String): ParsedSyncResponse {
         val snapshotApplier = SnapshotApplier(database.itemDao(), database.storeDao(), syncDao)
-        val (intents, snapshotUlid) = snapshotApplier.parseResponse(body)
-        if (snapshotUlid != null) {
+        val parsed = snapshotApplier.parseResponse(body)
+        parsed.snapshotUlid?.let { snapshotUlid ->
             val current = syncDao.getSyncState(KEY_LAST_SYNCED_ULID)
-            if (current == null || current < snapshotUlid)
+            if (current == null || current < snapshotUlid) {
                 syncDao.setSyncState(SyncStateEntity(KEY_LAST_SYNCED_ULID, snapshotUlid))
+            }
         }
-        return intents
+        return parsed
     }
 
     companion object {

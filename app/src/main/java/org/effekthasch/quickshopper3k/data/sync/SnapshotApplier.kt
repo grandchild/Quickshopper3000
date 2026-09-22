@@ -10,6 +10,12 @@ import org.effekthasch.quickshopper3k.data.local.SyncTombstoneEntity
 import org.json.JSONArray
 import org.json.JSONObject
 
+data class ParsedSyncResponse(
+    val intents: JSONArray,
+    val snapshotUlid: String?,
+    val snapshotApplied: Boolean,
+)
+
 class SnapshotApplier(
     private val itemDao: ItemDao,
     private val storeDao: StoreDao,
@@ -36,8 +42,7 @@ class SnapshotApplier(
                 itemDao.updateItem(snapshotItem)
                 existing.id
             }
-            val state = obj.getString("state")
-            if (state != "ACTIVATED") itemDao.setItemState(id, state)
+            itemDao.setItemState(id, obj.getString("state"))
 
         }
 
@@ -88,12 +93,19 @@ class SnapshotApplier(
         }
     }
 
-    suspend fun parseResponse(body: String): Pair<JSONArray, String?> {
+    suspend fun parseResponse(body: String): ParsedSyncResponse {
         val trimmed = body.trimStart()
-        if (!trimmed.startsWith("{")) return JSONArray(body) to null
+        if (!trimmed.startsWith("{")) {
+            return ParsedSyncResponse(JSONArray(body), null, false)
+        }
+
         val obj = JSONObject(trimmed)
-        obj.optJSONObject("snapshot")?.let { apply(it) }
-        val snapshotUlid = obj.optString("snapshot_ulid", "").ifEmpty { null }
-        return (obj.optJSONArray("intents") ?: JSONArray()) to snapshotUlid
+        val snapshot = obj.optJSONObject("snapshot")
+        snapshot?.let { apply(it) }
+        return ParsedSyncResponse(
+            intents = obj.optJSONArray("intents") ?: JSONArray(),
+            snapshotUlid = obj.optString("snapshot_ulid", "").ifEmpty { null },
+            snapshotApplied = snapshot != null
+        )
     }
 }
