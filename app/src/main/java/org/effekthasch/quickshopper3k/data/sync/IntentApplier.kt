@@ -31,6 +31,41 @@ class IntentApplier(
         "POSTPONED" to 2
     )
 
+    suspend fun recoverMissingItems(intents: List<SyncIntent>) {
+        val metadataByUuid = linkedMapOf<String, MissingItemMetadata>()
+
+        fun collect(intent: SyncIntent) {
+            when (intent) {
+                is SyncIntent.AddItem -> {
+                    if (intent.name.isNotBlank()) {
+                        metadataByUuid[intent.itemUuid] = MissingItemMetadata(
+                            name = intent.name,
+                            description = intent.description,
+                            synonyms = intent.synonyms
+                        )
+                    }
+                }
+
+                is SyncIntent.RenameItem -> {
+                    if (intent.name.isNotBlank()) {
+                        val current = metadataByUuid[intent.itemUuid]
+                        metadataByUuid[intent.itemUuid] = (current ?: MissingItemMetadata(
+                            name = intent.name
+                        )).copy(name = intent.name)
+                    }
+                }
+
+                is SyncIntent.BulkAddItems -> intent.items.forEach(::collect)
+                else -> Unit
+            }
+        }
+
+        intents.forEach(::collect)
+        for ((itemUuid, metadata) in metadataByUuid) {
+            createMissingItem(itemUuid, metadata)
+        }
+    }
+
     suspend fun apply(intent: SyncIntent, serverUlid: String) {
         when (intent) {
             is SyncIntent.AddItem -> addItem(intent)
@@ -56,19 +91,31 @@ class IntentApplier(
     }
 
     private suspend fun addItem(intent: SyncIntent.AddItem) {
-        if (syncDao.isTombstoned(intent.itemUuid) != null) return
-        if (itemDao.getItemByUuid(intent.itemUuid) != null) return
-        val now = Ulid.timestamp(intent.itemUuid)
+        createMissingItem(
+            itemUuid = intent.itemUuid,
+            metadata = MissingItemMetadata(intent.name, intent.description, intent.synonyms)
+        )
+    }
+
+    private suspend fun createMissingItem(itemUuid: String, metadata: MissingItemMetadata) {
+        if (metadata.name.isBlank() || syncDao.isTombstoned(itemUuid) != null) return
+        if (itemDao.getItemByUuid(itemUuid) != null) return
+
+        val createdAt = if (Ulid.isValid(itemUuid)) {
+            Ulid.timestamp(itemUuid)
+        } else {
+            System.currentTimeMillis()
+        }
         val itemId = itemDao.insertItem(
             ItemEntity(
-                uuid = intent.itemUuid,
-                name = intent.name,
-                description = intent.description,
-                synonyms = intent.synonyms,
-                createdAt = now
+                uuid = itemUuid,
+                name = metadata.name,
+                description = metadata.description,
+                synonyms = metadata.synonyms,
+                createdAt = createdAt
             )
         )
-        recordItemAdded(itemId, now)
+        recordItemAdded(itemId, createdAt)
     }
 
     private suspend fun deleteItem(intent: SyncIntent.DeleteItem, serverUlid: String) {
@@ -80,8 +127,12 @@ class IntentApplier(
 
     private suspend fun renameItem(intent: SyncIntent.RenameItem) {
         if (syncDao.isTombstoned(intent.itemUuid) != null) return
-        val item = itemDao.getItemByUuid(intent.itemUuid) ?: return
-        itemDao.updateItem(item.copy(name = intent.name))
+        val item = itemDao.getItemByUuid(intent.itemUuid)
+        if (item == null) {
+            createMissingItem(intent.itemUuid, MissingItemMetadata(name = intent.name))
+        } else {
+            itemDao.updateItem(item.copy(name = intent.name))
+        }
     }
 
     private suspend fun setItemDescription(intent: SyncIntent.SetItemDescription) {
@@ -126,6 +177,12 @@ class IntentApplier(
     private suspend fun recordItemAdded(itemId: Long, addedAt: Long) {
         historyRecorder.recordActivation(itemId, addedAt, historySettings())
     }
+
+    private data class MissingItemMetadata(
+        val name: String,
+        val description: String = "",
+        val synonyms: String = ""
+    )
 
     private fun historySettings() = PurchaseHistorySettings(
         retentionDays = historyDaysProvider(),

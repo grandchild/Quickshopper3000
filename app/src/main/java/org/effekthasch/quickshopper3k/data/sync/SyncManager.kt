@@ -143,18 +143,12 @@ class SyncManager(
         }
 
         val parsed = parseIntentsResponse(response.body)
-        var latestUlid = sinceUlid
-        for (i in 0 until parsed.intents.length()) {
-            val json = parsed.intents.getJSONObject(i)
-            val envelope = SyncIntentSerializer.fromJson(json) ?: continue
-            val serverUlid = envelope.serverUlid ?: continue
-            if (envelope.deviceId == deviceId && !replayOwnIntents && !parsed.snapshotApplied) {
-                latestUlid = serverUlid
-                continue
-            }
-            applier.apply(envelope.intent, serverUlid)
-            latestUlid = serverUlid
-        }
+        val envelopes = parseEnvelopes(parsed.intents)
+        val latestUlid = applyEnvelopes(
+            envelopes = envelopes,
+            deviceId = deviceId,
+            skipOwnIntents = !replayOwnIntents && !parsed.snapshotApplied
+        ) ?: sinceUlid
         if (latestUlid != null && latestUlid != sinceUlid) {
             syncDao.setSyncState(SyncStateEntity(KEY_LAST_SYNCED_ULID, latestUlid))
         }
@@ -173,7 +167,7 @@ class SyncManager(
                         database.itemDao().getAllItems().isNotEmpty())
         if (hasRemoteState) {
             if (parsed.intents.length() > 0) {
-                applyRemoteIntents(parsed.intents)
+                applyEnvelopes(parseEnvelopes(parsed.intents), deviceId, skipOwnIntents = false)
             }
             if (database.itemDao().getAllItems().isNotEmpty()) {
                 initializeEmptyList()
@@ -186,18 +180,28 @@ class SyncManager(
         return push(client, listId, deviceId) && pull(client, listId, deviceId, false)
     }
 
-    private suspend fun applyRemoteIntents(array: JSONArray) {
+    private fun parseEnvelopes(array: JSONArray): List<SyncIntentEnvelope> =
+        (0 until array.length()).mapNotNull { index ->
+            SyncIntentSerializer.fromJson(array.getJSONObject(index))
+        }
+
+    private suspend fun applyEnvelopes(
+        envelopes: List<SyncIntentEnvelope>,
+        deviceId: String,
+        skipOwnIntents: Boolean,
+    ): String? {
+        applier.recoverMissingItems(envelopes.map { it.intent })
         var latestUlid: String? = null
-        for (i in 0 until array.length()) {
-            val json = array.getJSONObject(i)
-            val envelope = SyncIntentSerializer.fromJson(json) ?: continue
+        for (envelope in envelopes) {
             val serverUlid = envelope.serverUlid ?: continue
-            applier.apply(envelope.intent, serverUlid)
             latestUlid = serverUlid
+            if (skipOwnIntents && envelope.deviceId == deviceId) continue
+            applier.apply(envelope.intent, serverUlid)
         }
         if (latestUlid != null) {
             syncDao.setSyncState(SyncStateEntity(KEY_LAST_SYNCED_ULID, latestUlid))
         }
+        return latestUlid
     }
 
     private suspend fun enqueueFullState() {
