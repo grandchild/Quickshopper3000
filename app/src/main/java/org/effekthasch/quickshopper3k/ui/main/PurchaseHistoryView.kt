@@ -51,14 +51,14 @@ class PurchaseHistoryView @JvmOverloads constructor(
         if (historyRight <= 0f) return
 
         val start = now - DISPLAY_DAYS * MILLIS_PER_DAY
-        val bucketSize = DISPLAY_DAYS / HISTORY_BUCKETS
+        val displayDuration = DISPLAY_DAYS.toLong() * MILLIS_PER_DAY
         val fadeStart = historyRight * 0.5f
         val maximumDiameter = height * 0.5f
         historyPaint.color = themeColor(android.R.attr.textColorSecondary, 0xFF777777.toInt())
 
         repeat(HISTORY_BUCKETS) { bucket ->
-            val bucketStart = start + bucket * bucketSize * MILLIS_PER_DAY
-            val bucketEnd = bucketStart + bucketSize * MILLIS_PER_DAY
+            val bucketStart = start + displayDuration * bucket / HISTORY_BUCKETS
+            val bucketEnd = start + displayDuration * (bucket + 1) / HISTORY_BUCKETS
             val occurrences = activations.count { it >= bucketStart && it < bucketEnd }
             if (occurrences == 0) return@repeat
 

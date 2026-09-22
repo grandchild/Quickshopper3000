@@ -60,11 +60,12 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
     val purchaseInsights: LiveData<PurchaseInsights> = combine(
         repository.getPurchaseHistories(),
         _forecastNow
-    ) { histories, now ->
+    ) { histories, _ ->
         withContext(Dispatchers.Default) {
+            val forecasts = PurchaseStatistics.forecast(histories, System.currentTimeMillis())
             PurchaseInsights(
                 histories = histories.associate { it.itemId to it.activations },
-                forecasts = PurchaseStatistics.forecast(histories, now)
+                forecasts = forecasts
             )
         }
     }.asLiveData()
