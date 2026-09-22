@@ -47,24 +47,27 @@ class SyncManager(
         scope.launch { syncOnce() }
     }
 
-    private suspend fun syncOnce() {
-        if (syncing) return
+    suspend fun syncNow(): Boolean {
+        if (!syncOnce()) return false
+        return syncOnce()
+    }
+
+    private suspend fun syncOnce(): Boolean {
+        if (syncing) return false
         syncing = true
-        try {
-            val baseUrl = serverUrlProvider() ?: return
+        return try {
+            val baseUrl = serverUrlProvider() ?: return true
             val listId = listIdProvider()
             val deviceId = deviceIdProvider()
             val client = SyncHttpClient(baseUrl)
 
             withContext(Dispatchers.IO) {
                 val hasWatermark = syncDao.getSyncState(KEY_LAST_SYNCED_ULID) != null
-                val queuedCount = syncDao.getUnsyncedCount()
-                val hasQueued = queuedCount > 0
+                val hasQueued = syncDao.getUnsyncedCount() > 0
 
                 when {
                     hasWatermark || hasQueued -> {
-                        pull(client, listId, deviceId)
-                        push(client, listId, deviceId)
+                        pull(client, listId, deviceId) && push(client, listId, deviceId)
                     }
 
                     else -> initialSync(client, listId, deviceId)
@@ -72,16 +75,17 @@ class SyncManager(
             }
         } catch (e: Exception) {
             Log.w(TAG, "Sync failed", e)
+            false
         } finally {
             syncing = false
         }
     }
 
-    private suspend fun push(client: SyncHttpClient, listId: String, deviceId: String) {
+    private suspend fun push(client: SyncHttpClient, listId: String, deviceId: String): Boolean {
         var totalPushed = 0
         while (true) {
             val batch = syncDao.getUnsyncedBatch(BATCH_SIZE)
-            if (batch.isEmpty()) break
+            if (batch.isEmpty()) return true
 
             val envelopes = JSONArray()
             for (entry in batch) {
@@ -100,7 +104,7 @@ class SyncManager(
             val result = client.postIntents(listId, envelopes)
             if (result.isFailure) {
                 Log.w(TAG, "Push failed", result.exceptionOrNull())
-                return
+                return false
             }
 
             syncDao.markSynced(batch.map { it.id })
@@ -110,45 +114,50 @@ class SyncManager(
         }
     }
 
-    private suspend fun pull(client: SyncHttpClient, listId: String, deviceId: String) {
+    private suspend fun pull(client: SyncHttpClient, listId: String, deviceId: String): Boolean {
         val sinceUlid = syncDao.getSyncState(KEY_LAST_SYNCED_ULID)
-
-        client.getIntents(listId, sinceUlid, deviceId).onSuccess { response ->
-            val array = parseIntentsResponse(response.body)
-            var latestUlid = sinceUlid
-            for (i in 0 until array.length()) {
-                val json = array.getJSONObject(i)
-                val envelope = SyncIntentSerializer.fromJson(json) ?: continue
-                val serverUlid = envelope.serverUlid ?: continue
-                if (envelope.deviceId == deviceId) {
-                    latestUlid = serverUlid
-                    continue
-                }
-                applier.apply(envelope.intent, serverUlid)
-                latestUlid = serverUlid
-            }
-            if (latestUlid != null && latestUlid != sinceUlid) {
-                syncDao.setSyncState(SyncStateEntity(KEY_LAST_SYNCED_ULID, latestUlid))
-            }
-        }.onFailure { e ->
+        val response = client.getIntents(listId, sinceUlid, deviceId).getOrElse { e ->
             Log.w(TAG, "Pull failed", e)
+            return false
         }
+
+        val array = parseIntentsResponse(response.body)
+        var latestUlid = sinceUlid
+        for (i in 0 until array.length()) {
+            val json = array.getJSONObject(i)
+            val envelope = SyncIntentSerializer.fromJson(json) ?: continue
+            val serverUlid = envelope.serverUlid ?: continue
+            if (envelope.deviceId == deviceId) {
+                latestUlid = serverUlid
+                continue
+            }
+            applier.apply(envelope.intent, serverUlid)
+            latestUlid = serverUlid
+        }
+        if (latestUlid != null && latestUlid != sinceUlid) {
+            syncDao.setSyncState(SyncStateEntity(KEY_LAST_SYNCED_ULID, latestUlid))
+        }
+        return true
     }
 
-    private suspend fun initialSync(client: SyncHttpClient, listId: String, deviceId: String) {
+    private suspend fun initialSync(client: SyncHttpClient, listId: String, deviceId: String): Boolean {
         val remoteResult = client.getIntents(listId, null, deviceId).getOrElse { e ->
             Log.w(TAG, "Initial sync pull failed", e)
-            return
+            return false
         }
 
         val remoteArray = parseIntentsResponse(remoteResult.body)
-        if (remoteArray.length() > 0) {
-            applyRemoteIntents(remoteArray, deviceId)
-        } else {
-            enqueueFullState()
-            push(client, listId, deviceId)
-            pull(client, listId, deviceId)
+        val hasRemoteState = remoteArray.length() > 0 ||
+                syncDao.getSyncState(KEY_LAST_SYNCED_ULID) != null
+        if (hasRemoteState) {
+            if (remoteArray.length() > 0) {
+                applyRemoteIntents(remoteArray, deviceId)
+            }
+            return true
         }
+
+        enqueueFullState()
+        return push(client, listId, deviceId) && pull(client, listId, deviceId)
     }
 
     private suspend fun applyRemoteIntents(array: JSONArray, deviceId: String) {

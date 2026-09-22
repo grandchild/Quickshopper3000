@@ -234,6 +234,7 @@ class MainFragment :
 
     override fun onResume() {
         super.onResume()
+        viewModel.setFlushRecentlyDoneAt(prefsManager.flushRecentlyDoneAt)
         activity?.invalidateOptionsMenu()
         (activity as? MainActivity)?.updateStoreSelectorButton()
         (activity as? MainActivity)?.updateDoneVisibilityButton()

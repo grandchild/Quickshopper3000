@@ -21,11 +21,13 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.effekthasch.quickshopper3k.MainActivity
 import org.effekthasch.quickshopper3k.R
 import org.effekthasch.quickshopper3k.util.Ulid
 import org.effekthasch.quickshopper3k.data.local.AppDatabase
 
 import org.effekthasch.quickshopper3k.data.sync.IntentApplier
+import org.effekthasch.quickshopper3k.data.sync.SyncManager
 import org.effekthasch.quickshopper3k.data.sync.SyncHttpClient
 import org.effekthasch.quickshopper3k.data.sync.SyncIntentSerializer
 import org.effekthasch.quickshopper3k.util.BackupManager
@@ -245,15 +247,41 @@ class SettingsActivity : AppCompatActivity() {
         if (result.isSuccess) {
             prefsManager.syncServerUri = pending.serverUrl
             prefsManager.listId = pending.listId
+            val synced = syncCurrentList()
+            if (synced) {
+                prefsManager.flushRecentlyDoneAt = System.currentTimeMillis()
+            }
             syncServerUriInput.setText(pending.serverUrl)
             joinListInput.text?.clear()
             findViewById<TextView>(R.id.listIdDisplay).text =
                 getString(R.string.list_id_label, pending.listId)
             Toast.makeText(this, R.string.joined_list, Toast.LENGTH_SHORT).show()
+            if (!synced) {
+                Toast.makeText(this, R.string.error_occurred, Toast.LENGTH_SHORT).show()
+            }
         } else {
             joinListInputLayout.error = getString(R.string.error_join_list)
         }
         pendingJoin = null
+    }
+
+    private suspend fun syncCurrentList(): Boolean {
+        return withContext(Dispatchers.IO) {
+            SyncManager(
+                database = AppDatabase.getDatabase(this@SettingsActivity),
+                serverUrlProvider = { prefsManager.syncServerUri },
+                deviceIdProvider = { prefsManager.deviceId },
+                listIdProvider = { prefsManager.listId }
+            ).syncNow()
+        }
+    }
+
+    private fun restartMainActivity() {
+        startActivity(
+            Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            }
+        )
     }
 
     private fun showNoSuchListModal(pending: PendingJoin) {
@@ -396,8 +424,14 @@ class SettingsActivity : AppCompatActivity() {
                 progressDialog.dismiss()
 
                 result.onSuccess {
-                    Toast.makeText(this@SettingsActivity, R.string.backup_imported, Toast.LENGTH_LONG).show()
-                    recreate()
+                    val synced = syncCurrentList()
+                    if (synced) {
+                        prefsManager.flushRecentlyDoneAt = System.currentTimeMillis()
+                        Toast.makeText(this@SettingsActivity, R.string.backup_imported, Toast.LENGTH_LONG).show()
+                    } else {
+                        Toast.makeText(this@SettingsActivity, R.string.error_occurred, Toast.LENGTH_LONG).show()
+                    }
+                    restartMainActivity()
                 }.onFailure { error ->
                     val message = when {
                         error is BackupManager.LegacyBackupException -> R.string.error_legacy_backup
