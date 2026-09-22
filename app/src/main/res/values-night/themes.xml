@@ -14,6 +14,7 @@
         <item name="colorOnSecondary">@color/black</item>
         <!-- Status bar color. -->
         <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
+        <item name="android:textViewStyle">@style/Widget.QuickShopper3k.TextView</item>
         <!-- Customize your theme here. -->
     </style>
 </resources>

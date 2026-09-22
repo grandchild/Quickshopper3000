@@ -35,6 +35,7 @@ import org.effekthasch.quickshopper3k.domain.model.ItemState
 import org.effekthasch.quickshopper3k.domain.model.ItemText
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
 import org.effekthasch.quickshopper3k.ui.FabController
+import org.effekthasch.quickshopper3k.ui.common.applyItemRowHeight
 import org.effekthasch.quickshopper3k.ui.common.bindItemAmountBadge
 import org.effekthasch.quickshopper3k.util.ItemVisibilityMode
 import org.effekthasch.quickshopper3k.util.PreferencesManager
@@ -213,6 +214,7 @@ class MainFragment :
         super.onViewCreated(view, savedInstanceState)
 
         prefsManager = PreferencesManager(requireContext())
+        applySearchRowHeight()
 
         val database = AppDatabase.getDatabase(requireContext())
         val repository = ShoppingRepository(database)
@@ -242,9 +244,23 @@ class MainFragment :
         viewModel.refreshForecasts()
         viewModel.setFlushRecentlyDoneAt(prefsManager.flushRecentlyDoneAt)
         mainItemsAdapter.notifyDataSetChanged()
+        applySearchRowHeight()
         activity?.invalidateOptionsMenu()
         (activity as? MainActivity)?.updateStoreSelectorButton()
         (activity as? MainActivity)?.updateDoneVisibilityButton()
+    }
+
+    private fun applySearchRowHeight() {
+        val rowHeight = binding.searchContainer.applyItemRowHeight(
+            prefsManager.itemRowHeightIndex,
+            binding.searchInput
+        )
+        val verticalPadding = binding.searchContainer.paddingTop + binding.searchContainer.paddingBottom
+        val buttonSize = rowHeight - verticalPadding
+        binding.addItemButton.layoutParams = binding.addItemButton.layoutParams.apply {
+            width = buttonSize
+            height = buttonSize
+        }
     }
 
     private fun setupAddButton() {

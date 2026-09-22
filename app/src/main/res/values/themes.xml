@@ -14,7 +14,12 @@
         <item name="colorOnSecondary">@color/black</item>
         <!-- Status bar color. -->
         <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
+        <item name="android:textViewStyle">@style/Widget.QuickShopper3k.TextView</item>
         <!-- Customize your theme here. -->
+    </style>
+
+    <style name="Widget.QuickShopper3k.TextView" parent="android:Widget.TextView">
+        <item name="android:textSize">16sp</item>
     </style>
 
     <style name="Theme.QuickShopper3k.NoActionBar">

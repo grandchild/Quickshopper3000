@@ -9,9 +9,7 @@
     android:foreground="?attr/selectableItemBackground"
     android:minHeight="0dp"
     android:paddingStart="16dp"
-    android:paddingTop="2dp"
     android:paddingEnd="16dp"
-    android:paddingBottom="2dp"
 >
 
     <ImageView
@@ -88,10 +86,10 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="4dp"
-        android:paddingStart="5dp"
-        android:paddingEnd="5dp"
-        android:paddingTop="1dp"
-        android:paddingBottom="1dp"
+        android:paddingStart="5sp"
+        android:paddingEnd="5sp"
+        android:paddingTop="1sp"
+        android:paddingBottom="1sp"
         android:background="@drawable/bg_amount_badge"
         android:textColor="?android:attr/textColorPrimary"
         android:textSize="14sp"

@@ -80,6 +80,17 @@ class PreferencesManagerTest {
     }
 
     @Test
+    fun itemRowHeightIndex_migratesExistingFiveStopValue() {
+        clearPreferences()
+        context.getSharedPreferences("quickshopper3k_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putInt("item_row_height_index", ItemRowHeight.lastIndex)
+            .commit()
+
+        assertEquals(ItemRowHeight.lastIndex, PreferencesManager(context).itemRowHeightIndex)
+    }
+
+    @Test
     fun isLeftHanded_defaultsToFalse() {
         assertFalse(prefsManager.isLeftHanded)
     }

@@ -3,17 +3,16 @@ package org.effekthasch.quickshopper3k.util
 import kotlin.math.roundToInt
 
 object ItemRowHeight {
-    private val heightsDp = intArrayOf(28, 32, 36, 40, 45)
+    private val scales = floatArrayOf(1f, 1.2f, 1.4f, 1.6f, 1.8f)
 
     val lastIndex: Int
-        get() = heightsDp.lastIndex
+        get() = scales.lastIndex
 
     val defaultIndex: Int
         get() = lastIndex / 2
 
     fun index(value: Int): Int = value.coerceIn(0, lastIndex)
 
-    fun heightDp(index: Int): Int = heightsDp[this.index(index)]
-
-    fun heightPx(density: Float, index: Int): Int = (heightDp(index) * density).roundToInt()
+    fun heightPx(tightHeightPx: Int, index: Int): Int =
+        (tightHeightPx * scales[this.index(index)]).roundToInt()
 }

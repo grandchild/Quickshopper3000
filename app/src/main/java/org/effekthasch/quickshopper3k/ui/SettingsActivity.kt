@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -37,8 +38,8 @@ import org.effekthasch.quickshopper3k.data.sync.SyncManager
 import org.effekthasch.quickshopper3k.data.sync.SyncHttpClient
 import org.effekthasch.quickshopper3k.data.sync.SyncIntentSerializer
 import org.effekthasch.quickshopper3k.util.BackupManager
-import org.effekthasch.quickshopper3k.util.ItemRowHeight
 import org.effekthasch.quickshopper3k.util.PreferencesManager
+import org.effekthasch.quickshopper3k.ui.common.applyItemRowHeight
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -125,14 +126,17 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun setupRowHeightSlider() {
         val slider = findViewById<Slider>(R.id.rowHeightSlider)
+        val label = findViewById<TextView>(R.id.rowHeightValue)
         val preview = findViewById<LinearLayout>(R.id.rowHeightPreview)
 
         slider.value = prefsManager.itemRowHeightIndex.toFloat()
+        updateRowHeightLabel(label, prefsManager.itemRowHeightIndex)
         updateRowHeightPreview(preview, prefsManager.itemRowHeightIndex)
         slider.addOnChangeListener { _, value, fromUser ->
             if (!fromUser) return@addOnChangeListener
             val index = value.toInt()
             prefsManager.itemRowHeightIndex = index
+            updateRowHeightLabel(label, index)
             updateRowHeightPreview(preview, index)
         }
         slider.setOnTouchListener { _, event ->
@@ -155,8 +159,11 @@ class SettingsActivity : AppCompatActivity() {
         })
     }
 
+    private fun updateRowHeightLabel(label: TextView, index: Int) {
+        label.setText(ROW_HEIGHT_LABELS[index])
+    }
+
     private fun updateRowHeightPreview(preview: LinearLayout, index: Int) {
-        val height = ItemRowHeight.heightPx(resources.displayMetrics.density, index)
         val labels = intArrayOf(
             R.string.row_height_preview_item_one,
             R.string.row_height_preview_item_two,
@@ -164,8 +171,11 @@ class SettingsActivity : AppCompatActivity() {
         )
         for (position in 0 until preview.childCount) {
             val row = preview.getChildAt(position)
-            row.layoutParams = row.layoutParams.apply { this.height = height }
-            row.findViewById<TextView>(R.id.previewItemName).setText(labels[position])
+            val itemNameText = row.findViewById<TextView>(R.id.itemNameText)
+            row.findViewById<ImageView>(R.id.itemStateIcon).setImageResource(R.drawable.ic_state_done)
+            row.findViewById<TextView>(R.id.itemNameHalo).setText(labels[position])
+            itemNameText.setText(labels[position])
+            row.applyItemRowHeight(index, itemNameText)
         }
     }
 
@@ -540,5 +550,15 @@ class SettingsActivity : AppCompatActivity() {
         if (pendingJoin != null) return
         val value = syncServerUriInput.text?.toString()?.trim()
         prefsManager.syncServerUri = if (value.isNullOrBlank()) null else value
+    }
+
+    private companion object {
+        val ROW_HEIGHT_LABELS = intArrayOf(
+            R.string.row_height_tight,
+            R.string.row_height_compact,
+            R.string.row_height_medium,
+            R.string.row_height_easy,
+            R.string.row_height_spacious,
+        )
     }
 }

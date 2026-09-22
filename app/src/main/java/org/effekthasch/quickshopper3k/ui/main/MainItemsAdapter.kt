@@ -205,7 +205,7 @@ class MainItemsAdapter(
         }
 
         fun bind(storeItem: StoreItem, position: Int) {
-            binding.root.applyItemRowHeight(rowHeightIndex())
+            binding.root.applyItemRowHeight(rowHeightIndex(), binding.itemNameText)
             binding.dragHandle.visibility = if (nextMode) View.GONE else View.VISIBLE
             if (nextMode) {
                 binding.purchaseHistoryView.bind(

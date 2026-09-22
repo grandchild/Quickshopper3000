@@ -172,7 +172,7 @@ class StoresItemsAdapter(
         }
 
         fun bind(storeItem: StoreItem, position: Int) {
-            binding.root.applyItemRowHeight(rowHeightIndex())
+            binding.root.applyItemRowHeight(rowHeightIndex(), binding.itemNameText)
             binding.itemNameHalo.bindItemTextHalo(storeItem.item)
             binding.itemNameText.bindItemText(storeItem.item)
 

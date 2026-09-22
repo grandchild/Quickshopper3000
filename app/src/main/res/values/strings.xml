@@ -71,7 +71,12 @@
     <!-- Preferences -->
 
     <string name="flush_recently_done">Flush recently done</string>
-    <string name="row_height">Item size</string>
+    <string name="row_height">Item size:</string>
+    <string name="row_height_tight">Tight</string>
+    <string name="row_height_compact">Compact</string>
+    <string name="row_height_medium">Medium</string>
+    <string name="row_height_easy">Easy</string>
+    <string name="row_height_spacious">Spacious</string>
     <string name="row_height_preview_item_one">Milk</string>
     <string name="row_height_preview_item_two">Pasta</string>
     <string name="row_height_preview_item_three">Tomatoes</string>

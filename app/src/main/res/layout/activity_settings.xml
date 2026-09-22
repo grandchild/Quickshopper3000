@@ -15,15 +15,30 @@
         android:padding="16dp"
     >
 
-        <TextView
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
-            android:text="@string/row_height"
-            android:textAppearance="?attr/textAppearanceBodyLarge"
-            android:textColor="?android:attr/textColorPrimary"
-            android:textSize="18sp"
-        />
+            android:orientation="horizontal"
+        >
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/row_height"
+                android:textColor="?android:attr/textColorPrimary"
+                android:textSize="18sp"
+            />
+
+            <TextView
+                android:id="@+id/rowHeightValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:textColor="?android:attr/textColorSecondary"
+            />
+
+        </LinearLayout>
 
         <com.google.android.material.slider.Slider
             android:id="@+id/rowHeightSlider"
@@ -36,6 +51,7 @@
             app:labelBehavior="gone"
         />
 
+
         <LinearLayout
             android:id="@+id/rowHeightPreview"
             android:layout_width="match_parent"
@@ -46,9 +62,9 @@
             android:visibility="gone"
         >
 
-            <include layout="@layout/item_row_height_preview" />
-            <include layout="@layout/item_row_height_preview" />
-            <include layout="@layout/item_row_height_preview" />
+            <include layout="@layout/item_shopping_item" />
+            <include layout="@layout/item_shopping_item" />
+            <include layout="@layout/item_shopping_item" />
 
         </LinearLayout>
 
@@ -80,7 +96,6 @@
             android:fontFamily="monospace"
             android:padding="8dp"
             android:textColor="?android:attr/textColorPrimary"
-            android:textSize="16sp"
             android:drawableStart="@drawable/ic_share"
             android:drawablePadding="8dp"
             app:drawableTint="?android:attr/textColorPrimary"
