@@ -1,6 +1,7 @@
 package org.effekthasch.quickshopper3k.ui
 
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
@@ -58,6 +59,13 @@ class SettingsActivity : AppCompatActivity() {
 
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = getString(R.string.settings)
+        val versionName = packageManager.getPackageInfo(packageName, 0).versionName.orEmpty()
+        val versionText = if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+            getString(R.string.app_version_debug, getString(R.string.app_name), versionName)
+        } else {
+            getString(R.string.app_version, getString(R.string.app_name), versionName)
+        }
+        findViewById<TextView>(R.id.versionText).text = versionText
 
         prefsManager = PreferencesManager(this)
         syncServerUriInput = findViewById(R.id.syncServerUriInput)

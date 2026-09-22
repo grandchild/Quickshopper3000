@@ -1,5 +1,7 @@
 <resources>
     <string name="app_name">QuickShopper3k</string>
+    <string name="app_version">%1$s v%2$s</string>
+    <string name="app_version_debug">%1$s v%2$s debug build</string>
 
 
 
