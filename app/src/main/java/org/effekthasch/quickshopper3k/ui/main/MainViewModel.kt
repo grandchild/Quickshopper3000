@@ -96,8 +96,7 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
             val safetyCutoff = recentThreshold - (60 * 1000L)
 
             val displayItems = allItems.map { storeItem ->
-                val changedAt = storeItem.item.stateChangedAt ?: 0L
-                if (storeItem.item.state == ItemState.DEACTIVATED && changedAt < recentThreshold) {
+                if (isDoneAmountStale(storeItem.item)) {
                     storeItem.copy(item = storeItem.item.copy(amount = 1))
                 } else {
                     storeItem
@@ -186,6 +185,20 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
     val currentStoreId: LiveData<Long?> = _currentStoreId.asLiveData()
     val searchQuery: LiveData<String> = _searchQuery
     val doneVisibilityMode: LiveData<ItemVisibilityMode> = _doneVisibilityMode
+
+    fun isDoneAmountStale(item: Item): Boolean {
+        if (item.state != ItemState.DEACTIVATED) return false
+
+        val minutesThreshold = System.currentTimeMillis() -
+                ((_recentlyDoneMinutes.value ?: 60) * 60 * 1000L)
+        val flushAt = _flushRecentlyDoneAt.value
+        val recentThreshold = if (flushAt != null && flushAt > minutesThreshold) {
+            flushAt
+        } else {
+            minutesThreshold
+        }
+        return (item.stateChangedAt ?: 0L) < recentThreshold
+    }
 
     internal fun importIdentity(text: String): ItemIdentity? {
         return ItemText.parseImportLine(text)?.let(ItemText::identity)

@@ -520,6 +520,13 @@ class MainFragment :
         val menuBinding = DialogItemContextMenuBinding.inflate(layoutInflater)
 
         val storeSelected = viewModel.isStoreSelected()
+        menuBinding.contextMenuAmountRow.visibility = if (
+            viewModel.isDoneAmountStale(storeItem.item)
+        ) {
+            View.GONE
+        } else {
+            View.VISIBLE
+        }
         menuBinding.contextMenuBought.visibility = if (
             viewModel.doneVisibilityMode.value == ItemVisibilityMode.NEXT
         ) {
