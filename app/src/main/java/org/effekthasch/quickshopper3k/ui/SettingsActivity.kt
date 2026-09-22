@@ -25,6 +25,7 @@ import org.effekthasch.quickshopper3k.MainActivity
 import org.effekthasch.quickshopper3k.R
 import org.effekthasch.quickshopper3k.util.Ulid
 import org.effekthasch.quickshopper3k.data.local.AppDatabase
+import org.effekthasch.quickshopper3k.data.repository.ExampleItemsSeeder
 
 import org.effekthasch.quickshopper3k.data.sync.IntentApplier
 import org.effekthasch.quickshopper3k.data.sync.SyncManager
@@ -267,11 +268,18 @@ class SettingsActivity : AppCompatActivity() {
 
     private suspend fun syncCurrentList(): Boolean {
         return withContext(Dispatchers.IO) {
+            val database = AppDatabase.getDatabase(this@SettingsActivity)
             SyncManager(
-                database = AppDatabase.getDatabase(this@SettingsActivity),
+                database = database,
                 serverUrlProvider = { prefsManager.syncServerUri },
                 deviceIdProvider = { prefsManager.deviceId },
-                listIdProvider = { prefsManager.listId }
+                listIdProvider = { prefsManager.listId },
+                initializeEmptyList = {
+                    if (!prefsManager.exampleItemsInitialized) {
+                        ExampleItemsSeeder(database).seedIfEmpty()
+                        prefsManager.exampleItemsInitialized = true
+                    }
+                }
             ).syncNow()
         }
     }

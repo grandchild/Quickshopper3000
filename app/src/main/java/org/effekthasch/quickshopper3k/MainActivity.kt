@@ -13,6 +13,7 @@ import androidx.fragment.app.Fragment
 import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.bottomappbar.BottomAppBar
 import org.effekthasch.quickshopper3k.data.local.AppDatabase
+import org.effekthasch.quickshopper3k.data.repository.ExampleItemsSeeder
 import org.effekthasch.quickshopper3k.data.sync.SyncManager
 import org.effekthasch.quickshopper3k.databinding.ActivityMainBinding
 import org.effekthasch.quickshopper3k.ui.FabController
@@ -34,11 +35,19 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         prefsManager = PreferencesManager(this)
+        val database = AppDatabase.getDatabase(this)
+        val initializeEmptyList: suspend () -> Unit = {
+            if (!prefsManager.exampleItemsInitialized) {
+                ExampleItemsSeeder(database).seedIfEmpty()
+                prefsManager.exampleItemsInitialized = true
+            }
+        }
         syncManager = SyncManager(
-            database = AppDatabase.getDatabase(this),
+            database = database,
             serverUrlProvider = { prefsManager.syncServerUri },
             deviceIdProvider = { prefsManager.deviceId },
-            listIdProvider = { prefsManager.listId }
+            listIdProvider = { prefsManager.listId },
+            initializeEmptyList = initializeEmptyList
         )
 
         setupBottomAppBar()

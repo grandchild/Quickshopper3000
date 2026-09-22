@@ -17,7 +17,8 @@ class SyncManager(
     private val database: AppDatabase,
     private val serverUrlProvider: () -> String?,
     private val deviceIdProvider: () -> String,
-    private val listIdProvider: () -> String
+    private val listIdProvider: () -> String,
+    private val initializeEmptyList: suspend () -> Unit = {}
 ) {
     private val syncDao = database.syncDao()
     private val applier = IntentApplier(database.itemDao(), database.storeDao(), syncDao)
@@ -56,7 +57,11 @@ class SyncManager(
         if (syncing) return false
         syncing = true
         return try {
-            val baseUrl = serverUrlProvider() ?: return true
+            val baseUrl = serverUrlProvider()
+            if (baseUrl == null) {
+                initializeEmptyList()
+                return true
+            }
             val listId = listIdProvider()
             val deviceId = deviceIdProvider()
             val client = SyncHttpClient(baseUrl)
@@ -148,14 +153,19 @@ class SyncManager(
 
         val remoteArray = parseIntentsResponse(remoteResult.body)
         val hasRemoteState = remoteArray.length() > 0 ||
-                syncDao.getSyncState(KEY_LAST_SYNCED_ULID) != null
+                (syncDao.getSyncState(KEY_LAST_SYNCED_ULID) != null &&
+                        database.itemDao().getAllItems().isNotEmpty())
         if (hasRemoteState) {
             if (remoteArray.length() > 0) {
                 applyRemoteIntents(remoteArray, deviceId)
             }
+            if (database.itemDao().getAllItems().isNotEmpty()) {
+                initializeEmptyList()
+            }
             return true
         }
 
+        initializeEmptyList()
         enqueueFullState()
         return push(client, listId, deviceId) && pull(client, listId, deviceId)
     }

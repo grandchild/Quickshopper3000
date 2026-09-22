@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.effekthasch.quickshopper3k.data.local.AppDatabase
+import org.effekthasch.quickshopper3k.data.repository.ExampleItemsSeeder
 import org.effekthasch.quickshopper3k.data.repository.ShoppingRepository
 import org.effekthasch.quickshopper3k.domain.model.ItemState
 import org.junit.After
@@ -32,6 +33,21 @@ class RepositoryIntegrationTest {
     @After
     fun teardown() {
         database.close()
+    }
+
+    @Test
+    fun emptyList_getsExampleItemsWithFeatureValues() = runTest {
+        assertTrue(ExampleItemsSeeder(database).seedIfEmpty())
+
+        val items = repository.getAllItems().first()
+
+        assertEquals(listOf("Apples", "Oranges", "Bananas", "Pineapple"), items.map { it.name })
+        assertEquals("Golden Delicious", items[0].description)
+        assertEquals(3, items[1].amount)
+        assertEquals(ItemState.DEACTIVATED, items[2].state)
+        assertEquals(ItemState.POSTPONED, items[3].state)
+        assertTrue(items.all { it.synonyms.isEmpty() })
+        assertFalse(ExampleItemsSeeder(database).seedIfEmpty())
     }
 
     @Test

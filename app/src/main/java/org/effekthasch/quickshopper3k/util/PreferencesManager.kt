@@ -139,7 +139,16 @@ class PreferencesManager(context: Context) {
             return id
         }
         set(value) {
-            prefs.edit().putString(KEY_LIST_ID, value).apply()
+            prefs.edit()
+                .putString(KEY_LIST_ID, value)
+                .remove(KEY_EXAMPLE_ITEMS_INITIALIZED)
+                .apply()
+        }
+
+    var exampleItemsInitialized: Boolean
+        get() = prefs.getBoolean(KEY_EXAMPLE_ITEMS_INITIALIZED, false)
+        set(value) {
+            prefs.edit().putBoolean(KEY_EXAMPLE_ITEMS_INITIALIZED, value).apply()
         }
 
     var flushRecentlyDoneAt: Long?
@@ -172,5 +181,6 @@ class PreferencesManager(context: Context) {
         private const val KEY_SYNC_SERVER_URI = "sync_server_uri"
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_LIST_ID = "list_id"
+        private const val KEY_EXAMPLE_ITEMS_INITIALIZED = "example_items_initialized"
     }
 }

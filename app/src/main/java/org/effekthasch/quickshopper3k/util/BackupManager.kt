@@ -5,6 +5,7 @@ import android.database.sqlite.SQLiteDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.effekthasch.quickshopper3k.data.local.AppDatabase
+import org.effekthasch.quickshopper3k.data.repository.ExampleItemsSeeder
 import org.json.JSONObject
 import java.io.File
 import java.io.FileInputStream
@@ -120,6 +121,9 @@ class BackupManager(private val context: Context) {
 
             val settingsJson = settingsFile.readText()
             importSettings(settingsJson)
+
+            ExampleItemsSeeder(AppDatabase.getDatabase(context)).seedIfEmpty()
+            PreferencesManager(context).exampleItemsInitialized = true
 
             tempDir.deleteRecursively()
 
