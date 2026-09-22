@@ -54,7 +54,10 @@ class PurchaseHistoryView @JvmOverloads constructor(
         val displayDuration = DISPLAY_DAYS.toLong() * MILLIS_PER_DAY
         val fadeStart = historyRight * 0.5f
         val maximumDiameter = height * 0.5f
-        historyPaint.color = themeColor(android.R.attr.textColorSecondary, 0xFF777777.toInt())
+        historyPaint.color = themeColor(
+            android.R.attr.textColorSecondary,
+            ContextCompat.getColor(context, R.color.purchase_history_fallback)
+        )
 
         repeat(HISTORY_BUCKETS) { bucket ->
             val bucketStart = start + displayDuration * bucket / HISTORY_BUCKETS

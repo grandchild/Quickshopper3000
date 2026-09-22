@@ -8,41 +8,41 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
+    <color name="item_action_add">#4CAF50</color>
+    <color name="item_state_done">#4CAF50</color>
+    <color name="item_state_unavailable">#FF9800</color>
+    <color name="item_state_needed">#4CAF50</color>
+    <color name="swipe_state_done">#4CAF50</color>
+    <color name="swipe_state_unavailable">#FF9800</color>
+    <color name="swipe_state_needed">#2196F3</color>
+    <color name="swipe_state_icon">#FFFFFFFF</color>
+
+    <color name="add_item_button_background">#1E888888</color>
+    <color name="item_amount_badge">#40808080</color>
+    <color name="purchase_history_fallback">#757575</color>
     <color name="selection_highlight">#90CAF9</color>
     <color name="purchase_prediction">#D32F2F</color>
-
-
     <color name="import_preview_existing">#9E9E9E</color>
     <color name="import_preview_new">#2E7D32</color>
 
-    <!-- debug view: intent row backgrounds (solid, readable) -->
     <color name="debug_bg_add">#C8E6C9</color>
     <color name="debug_fg_add">#1B5E20</color>
-
     <color name="debug_bg_remove">#FFCDD2</color>
     <color name="debug_fg_remove">#B71C1C</color>
-
     <color name="debug_bg_rename">#FFF9C4</color>
     <color name="debug_fg_rename">#F57F17</color>
-
     <color name="debug_bg_state">#E1F5FE</color>
     <color name="debug_fg_state">#01579B</color>
-
     <color name="debug_bg_amount">#EDE7F6</color>
     <color name="debug_fg_amount">#4527A0</color>
-
     <color name="debug_bg_store">#FFF3E0</color>
     <color name="debug_fg_store">#E65100</color>
-
     <color name="debug_bg_bulk">#E8F5E9</color>
     <color name="debug_fg_bulk">#2E7D32</color>
-
     <color name="debug_bg_other">#F5F5F5</color>
     <color name="debug_fg_other">#424242</color>
-
     <color name="debug_bg_snapshot">#ECEFF1</color>
     <color name="debug_fg_snapshot">#37474F</color>
-
     <color name="debug_bg_device">#E3F2FD</color>
     <color name="debug_fg_device">#0D47A1</color>
 </resources>

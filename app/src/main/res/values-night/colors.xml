@@ -1,8 +1,40 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <resources>
+    <color name="item_action_add">#81C784</color>
+    <color name="item_state_done">#81C784</color>
+    <color name="item_state_unavailable">#FFB74D</color>
+    <color name="item_state_needed">#81C784</color>
+    <color name="swipe_state_done">#81C784</color>
+    <color name="swipe_state_unavailable">#FFB74D</color>
+    <color name="swipe_state_needed">#64B5F6</color>
+    <color name="swipe_state_icon">#1B1B1F</color>
 
-
+    <color name="add_item_button_background">#1FFFFFFF</color>
+    <color name="item_amount_badge">#40FFFFFF</color>
+    <color name="purchase_history_fallback">#B0B0B0</color>
     <color name="selection_highlight">#42536B</color>
+    <color name="purchase_prediction">#EF5350</color>
     <color name="import_preview_existing">#B0B0B0</color>
     <color name="import_preview_new">#81C784</color>
+
+    <color name="debug_bg_add">#1B5E20</color>
+    <color name="debug_fg_add">#C8E6C9</color>
+    <color name="debug_bg_remove">#B71C1C</color>
+    <color name="debug_fg_remove">#FFCDD2</color>
+    <color name="debug_bg_rename">#827717</color>
+    <color name="debug_fg_rename">#FFF9C4</color>
+    <color name="debug_bg_state">#01579B</color>
+    <color name="debug_fg_state">#E1F5FE</color>
+    <color name="debug_bg_amount">#4527A0</color>
+    <color name="debug_fg_amount">#EDE7F6</color>
+    <color name="debug_bg_store">#E65100</color>
+    <color name="debug_fg_store">#FFF3E0</color>
+    <color name="debug_bg_bulk">#1B5E20</color>
+    <color name="debug_fg_bulk">#E8F5E9</color>
+    <color name="debug_bg_other">#424242</color>
+    <color name="debug_fg_other">#F5F5F5</color>
+    <color name="debug_bg_snapshot">#37474F</color>
+    <color name="debug_fg_snapshot">#ECEFF1</color>
+    <color name="debug_bg_device">#0D47A1</color>
+    <color name="debug_fg_device">#E3F2FD</color>
 </resources>

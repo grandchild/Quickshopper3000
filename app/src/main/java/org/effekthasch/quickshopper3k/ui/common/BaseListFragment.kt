@@ -239,13 +239,13 @@ abstract class BaseListFragment<T> : Fragment() {
         }
 
         private fun getColorForState(targetState: String): Int {
-            return when (targetState) {
-                "Done" -> android.graphics.Color.parseColor("#4CAF50")
-                "N/A" -> android.graphics.Color.parseColor("#FF9800")
-                "Needed" -> android.graphics.Color.parseColor("#2196F3")
-                "Available" -> android.graphics.Color.parseColor("#4CAF50")
-                else -> android.graphics.Color.parseColor("#2196F3")
+            val colorRes = when (targetState) {
+                "Done", "Available" -> R.color.swipe_state_done
+                "N/A" -> R.color.swipe_state_unavailable
+                "Needed" -> R.color.swipe_state_needed
+                else -> R.color.swipe_state_needed
             }
+            return ContextCompat.getColor(requireContext(), colorRes)
         }
 
         private fun drawStateIcon(
@@ -283,7 +283,9 @@ abstract class BaseListFragment<T> : Fragment() {
                     val bottom = top + iconSizeInt
 
                     it.setBounds(left, top, right, bottom)
-                    it.mutate().setTint(android.graphics.Color.WHITE)
+                    it.mutate().setTint(
+                        ContextCompat.getColor(requireContext(), R.color.swipe_state_icon)
+                    )
                     it.draw(c)
                 }
             }

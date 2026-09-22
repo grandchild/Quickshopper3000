@@ -9,6 +9,7 @@ import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.CheckBox
 import android.widget.EditText
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.snackbar.Snackbar
@@ -529,7 +530,7 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
                     val bottom = top + iconSizeInt
 
                     it.setBounds(left, top, right, bottom)
-                    it.setTint(android.graphics.Color.WHITE)
+                    it.setTint(ContextCompat.getColor(requireContext(), R.color.swipe_state_icon))
                     it.draw(c)
                 }
             }
@@ -543,11 +544,12 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
         }
 
         private fun getColorForState(state: String): Int {
-            return when (state) {
-                "Available" -> android.graphics.Color.parseColor("#4CAF50")
-                "N/A" -> android.graphics.Color.parseColor("#F44336")
-                else -> android.graphics.Color.GRAY
+            val colorRes = when (state) {
+                "Available" -> R.color.swipe_state_done
+                "N/A" -> R.color.swipe_state_unavailable
+                else -> R.color.swipe_state_needed
             }
+            return ContextCompat.getColor(requireContext(), colorRes)
         }
     }
 
