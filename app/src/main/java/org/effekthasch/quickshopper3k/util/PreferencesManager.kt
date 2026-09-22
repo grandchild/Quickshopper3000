@@ -112,10 +112,19 @@ class PreferencesManager(context: Context) {
             prefs.edit().putString(KEY_DONE_VISIBILITY_MODE, value.name.lowercase()).apply()
         }
 
-    var recentlyDoneMinutes: Int
-        get() = prefs.getInt(KEY_RECENTLY_DONE_MINUTES, 60)
+    var staleDoneTimeoutSeconds: Int
+        get() {
+            val value = if (prefs.contains(KEY_STALE_DONE_TIMEOUT_SECONDS)) {
+                prefs.getInt(KEY_STALE_DONE_TIMEOUT_SECONDS, StaleDoneTimeout.defaultSeconds)
+            } else {
+                prefs.getInt(KEY_RECENTLY_DONE_MINUTES, 60) * 60
+            }
+            return StaleDoneTimeout.value(value)
+        }
         set(value) {
-            prefs.edit().putInt(KEY_RECENTLY_DONE_MINUTES, value).apply()
+            prefs.edit()
+                .putInt(KEY_STALE_DONE_TIMEOUT_SECONDS, StaleDoneTimeout.value(value))
+                .apply()
         }
 
     var historyDays: Int
@@ -205,6 +214,7 @@ class PreferencesManager(context: Context) {
 
         private const val KEY_DONE_VISIBILITY_MODE = "done_visibility_mode"
         private const val KEY_RECENTLY_DONE_MINUTES = "recently_done_minutes"
+        private const val KEY_STALE_DONE_TIMEOUT_SECONDS = "stale_done_timeout_seconds"
         private const val KEY_FLUSH_RECENTLY_DONE_AT = "flush_recently_done_at"
         private const val KEY_HISTORY_DAYS = "history_days"
         private const val KEY_MISTAKE_DONE_SECONDS = "mistake_done_seconds"

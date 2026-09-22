@@ -68,6 +68,43 @@
 
         </LinearLayout>
 
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp"
+            android:orientation="horizontal"
+        >
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/stale_done_timeout"
+                android:textColor="?android:attr/textColorPrimary"
+                android:textSize="18sp"
+            />
+
+            <TextView
+                android:id="@+id/staleDoneTimeoutValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:textColor="?android:attr/textColorSecondary"
+            />
+
+        </LinearLayout>
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/staleDoneTimeoutSlider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:contentDescription="@string/stale_done_timeout"
+            android:stepSize="1"
+            android:valueFrom="0"
+            android:valueTo="8"
+            app:labelBehavior="gone"
+        />
+
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

@@ -80,6 +80,16 @@
     <string name="row_height_preview_item_one">Milk</string>
     <string name="row_height_preview_item_two">Pasta</string>
     <string name="row_height_preview_item_three">Tomatoes</string>
+    <string name="stale_done_timeout">Flush Done Items After</string>
+    <string name="stale_done_timeout_0s">0s</string>
+    <string name="stale_done_timeout_3s">3s</string>
+    <string name="stale_done_timeout_10s">10s</string>
+    <string name="stale_done_timeout_20s">20s</string>
+    <string name="stale_done_timeout_1min">1min</string>
+    <string name="stale_done_timeout_3min">3min</string>
+    <string name="stale_done_timeout_10min">10min</string>
+    <string name="stale_done_timeout_20min">20min</string>
+    <string name="stale_done_timeout_1hour">1hour</string>
     <string name="sync_server">Sync server</string>
     <string name="sync_server_hint">Sync server</string>
     <string name="sync_sharing">List sharing</string>

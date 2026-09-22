@@ -19,6 +19,8 @@ import androidx.core.content.ContextCompat.getSystemService
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.snackbar.Snackbar
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.effekthasch.quickshopper3k.MainActivity
 import org.effekthasch.quickshopper3k.R
@@ -50,6 +52,7 @@ class MainFragment :
     private lateinit var viewModel: MainViewModel
     private lateinit var mainItemsAdapter: MainItemsAdapter
     private lateinit var prefsManager: PreferencesManager
+    private var staleDoneRefreshJob: Job? = null
 
     private var currentStoreName: String? = null
     private var lastKeyboardVisible = false
@@ -226,7 +229,7 @@ class MainFragment :
         val initialStoreId = prefsManager.selectedShopStoreIds.firstOrNull() ?: 0L
         viewModel.setCurrentStore(initialStoreId)
         viewModel.setDoneVisibilityMode(prefsManager.doneVisibilityMode)
-        viewModel.setRecentlyDoneMinutes(prefsManager.recentlyDoneMinutes)
+        viewModel.setStaleDoneTimeoutSeconds(prefsManager.staleDoneTimeoutSeconds)
         viewModel.setHistoryDays(prefsManager.historyDays)
         viewModel.setMistakeDoneSeconds(prefsManager.mistakeDoneSeconds)
         viewModel.setReactivateMinSeconds(prefsManager.reactivateMinSeconds)
@@ -241,13 +244,27 @@ class MainFragment :
 
     override fun onResume() {
         super.onResume()
+        staleDoneRefreshJob?.cancel()
+        staleDoneRefreshJob = lifecycleScope.launch {
+            while (true) {
+                delay(1000)
+                viewModel.refreshStaleness()
+            }
+        }
         viewModel.refreshForecasts()
+        viewModel.setStaleDoneTimeoutSeconds(prefsManager.staleDoneTimeoutSeconds)
         viewModel.setFlushRecentlyDoneAt(prefsManager.flushRecentlyDoneAt)
         mainItemsAdapter.notifyDataSetChanged()
         applySearchRowHeight()
         activity?.invalidateOptionsMenu()
         (activity as? MainActivity)?.updateStoreSelectorButton()
         (activity as? MainActivity)?.updateDoneVisibilityButton()
+    }
+
+    override fun onPause() {
+        staleDoneRefreshJob?.cancel()
+        staleDoneRefreshJob = null
+        super.onPause()
     }
 
     private fun applySearchRowHeight() {

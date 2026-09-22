@@ -23,6 +23,7 @@ import org.effekthasch.quickshopper3k.domain.model.StoreItem
 import org.effekthasch.quickshopper3k.domain.statistics.PurchaseInsights
 import org.effekthasch.quickshopper3k.domain.statistics.PurchaseStatistics
 import org.effekthasch.quickshopper3k.util.ItemVisibilityMode
+import org.effekthasch.quickshopper3k.util.StaleDoneTimeout
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
@@ -40,12 +41,13 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
     private val _currentStoreId = MutableStateFlow<Long?>(null)
     private val _searchQuery = MutableLiveData("")
     private val _doneVisibilityMode = MutableLiveData(ItemVisibilityMode.CURRENT)
-    private val _recentlyDoneMinutes = MutableLiveData(60)
+    private val _staleDoneTimeoutSeconds = MutableLiveData(StaleDoneTimeout.defaultSeconds)
     private val _historyDays = MutableLiveData(ShoppingRepository.DEFAULT_HISTORY_DAYS)
     private val _mistakeDoneSeconds = MutableLiveData(20)
     private val _reactivateMinSeconds = MutableLiveData(3600)
     private val _flushRecentlyDoneAt = MutableLiveData<Long?>(null)
     private val _isDragging = MutableLiveData(false)
+    private val _staleDoneNow = MutableLiveData(System.currentTimeMillis())
     private val _forecastNow = MutableStateFlow(System.currentTimeMillis())
     private var resetInFlight = false
     private var cachedSearchItems: List<StoreItem>? = null
@@ -86,13 +88,13 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
             }
             val searchTerms = ItemText.compileSearchTerms(query)
             val visibilityMode = _doneVisibilityMode.value ?: ItemVisibilityMode.CURRENT
-            val recentMinutes = _recentlyDoneMinutes.value ?: 60
+            val timeoutSeconds = _staleDoneTimeoutSeconds.value ?: StaleDoneTimeout.defaultSeconds
             val flushAt = _flushRecentlyDoneAt.value
             val isDragging = _isDragging.value ?: false
             val currentStore = _currentStoreId.value
-            val now = System.currentTimeMillis()
-            val minutesThreshold = now - (recentMinutes * 60 * 1000L)
-            val recentThreshold = if (flushAt != null && flushAt > minutesThreshold) flushAt else minutesThreshold
+            val now = _staleDoneNow.value ?: System.currentTimeMillis()
+            val timeoutThreshold = now - (timeoutSeconds * 1000L)
+            val recentThreshold = if (flushAt != null && flushAt > timeoutThreshold) flushAt else timeoutThreshold
             val safetyCutoff = recentThreshold - (60 * 1000L)
 
             val displayItems = allItems.map { storeItem ->
@@ -175,7 +177,8 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         addSource(items) { update() }
         addSource(_searchQuery) { update() }
         addSource(_doneVisibilityMode) { update() }
-        addSource(_recentlyDoneMinutes) { update() }
+        addSource(_staleDoneTimeoutSeconds) { update() }
+        addSource(_staleDoneNow) { update() }
         addSource(_flushRecentlyDoneAt) { update() }
         addSource(_isDragging) { update() }
         addSource(_currentStoreId.asLiveData()) { update() }
@@ -189,13 +192,13 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
     fun isDoneAmountStale(item: Item): Boolean {
         if (item.state != ItemState.DEACTIVATED) return false
 
-        val minutesThreshold = System.currentTimeMillis() -
-                ((_recentlyDoneMinutes.value ?: 60) * 60 * 1000L)
+        val timeoutThreshold = System.currentTimeMillis() -
+                ((_staleDoneTimeoutSeconds.value ?: StaleDoneTimeout.defaultSeconds) * 1000L)
         val flushAt = _flushRecentlyDoneAt.value
-        val recentThreshold = if (flushAt != null && flushAt > minutesThreshold) {
+        val recentThreshold = if (flushAt != null && flushAt > timeoutThreshold) {
             flushAt
         } else {
-            minutesThreshold
+            timeoutThreshold
         }
         return (item.stateChangedAt ?: 0L) < recentThreshold
     }
@@ -242,8 +245,8 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         _doneVisibilityMode.value = mode
     }
 
-    fun setRecentlyDoneMinutes(minutes: Int) {
-        _recentlyDoneMinutes.value = minutes
+    fun setStaleDoneTimeoutSeconds(seconds: Int) {
+        _staleDoneTimeoutSeconds.value = StaleDoneTimeout.value(seconds)
     }
 
     fun setHistoryDays(days: Int) {
@@ -272,6 +275,10 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
 
     fun refreshForecasts() {
         _forecastNow.value = System.currentTimeMillis()
+    }
+
+    fun refreshStaleness() {
+        _staleDoneNow.value = System.currentTimeMillis()
     }
 
     fun addItem(name: String, onResult: (Result<Long>) -> Unit) {

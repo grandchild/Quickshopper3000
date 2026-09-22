@@ -39,6 +39,7 @@ import org.effekthasch.quickshopper3k.data.sync.SyncHttpClient
 import org.effekthasch.quickshopper3k.data.sync.SyncIntentSerializer
 import org.effekthasch.quickshopper3k.util.BackupManager
 import org.effekthasch.quickshopper3k.util.PreferencesManager
+import org.effekthasch.quickshopper3k.util.StaleDoneTimeout
 import org.effekthasch.quickshopper3k.ui.common.applyItemRowHeight
 
 class SettingsActivity : AppCompatActivity() {
@@ -74,6 +75,7 @@ class SettingsActivity : AppCompatActivity() {
 
         prefsManager = PreferencesManager(this)
         setupRowHeightSlider()
+        setupStaleDoneTimeoutSlider()
         syncServerUriInput = findViewById(R.id.syncServerUriInput)
         syncServerUriInput.setText(prefsManager.syncServerUri ?: "")
 
@@ -157,6 +159,25 @@ class SettingsActivity : AppCompatActivity() {
                 preview.visibility = View.GONE
             }
         })
+    }
+
+    private fun setupStaleDoneTimeoutSlider() {
+        val slider = findViewById<Slider>(R.id.staleDoneTimeoutSlider)
+        val label = findViewById<TextView>(R.id.staleDoneTimeoutValue)
+        val index = StaleDoneTimeout.index(prefsManager.staleDoneTimeoutSeconds)
+
+        slider.value = index.toFloat()
+        updateStaleDoneTimeoutLabel(label, index)
+        slider.addOnChangeListener { _, value, fromUser ->
+            if (!fromUser) return@addOnChangeListener
+            val selectedIndex = value.toInt()
+            prefsManager.staleDoneTimeoutSeconds = StaleDoneTimeout.valuesSeconds[selectedIndex]
+            updateStaleDoneTimeoutLabel(label, selectedIndex)
+        }
+    }
+
+    private fun updateStaleDoneTimeoutLabel(label: TextView, index: Int) {
+        label.setText(STALE_DONE_TIMEOUT_LABELS[index])
     }
 
     private fun updateRowHeightLabel(label: TextView, index: Int) {
@@ -559,6 +580,17 @@ class SettingsActivity : AppCompatActivity() {
             R.string.row_height_medium,
             R.string.row_height_easy,
             R.string.row_height_spacious,
+        )
+        val STALE_DONE_TIMEOUT_LABELS = intArrayOf(
+            R.string.stale_done_timeout_0s,
+            R.string.stale_done_timeout_3s,
+            R.string.stale_done_timeout_10s,
+            R.string.stale_done_timeout_20s,
+            R.string.stale_done_timeout_1min,
+            R.string.stale_done_timeout_3min,
+            R.string.stale_done_timeout_10min,
+            R.string.stale_done_timeout_20min,
+            R.string.stale_done_timeout_1hour,
         )
     }
 }
