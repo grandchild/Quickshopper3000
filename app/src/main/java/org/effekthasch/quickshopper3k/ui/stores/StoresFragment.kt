@@ -71,7 +71,8 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
             onItemLongClick = {},
             onStartDrag = { holder ->
                 itemTouchHelper.startDrag(holder)
-            }
+            },
+            rowHeightIndex = { prefsManager.itemRowHeightIndex },
         )
         storesAdapter.registerAdapterDataObserver(object :
             androidx.recyclerview.widget.RecyclerView.AdapterDataObserver() {
@@ -259,6 +260,7 @@ class StoresFragment : BaseListFragment<StoreItem>(), org.effekthasch.quickshopp
     override fun onResume() {
         super.onResume()
         (activity as? org.effekthasch.quickshopper3k.MainActivity)?.updateStoreSelectorButton()
+        storesAdapter.notifyDataSetChanged()
         updateSelectionCounter()
     }
 

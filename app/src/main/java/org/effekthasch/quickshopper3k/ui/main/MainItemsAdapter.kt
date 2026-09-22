@@ -11,13 +11,15 @@ import org.effekthasch.quickshopper3k.domain.model.ItemState
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
 import org.effekthasch.quickshopper3k.domain.statistics.PurchaseForecast
 import org.effekthasch.quickshopper3k.ui.common.BaseDragAdapter
+import org.effekthasch.quickshopper3k.ui.common.applyItemRowHeight
 import org.effekthasch.quickshopper3k.ui.common.bindItemAmountBadge
 import org.effekthasch.quickshopper3k.ui.common.bindItemText
 
 class MainItemsAdapter(
     private val onItemClick: (StoreItem) -> Boolean,
     private val onItemLongClick: (StoreItem, Float, Float) -> Unit,
-    private val onStartDrag: (RecyclerView.ViewHolder) -> Unit
+    private val onStartDrag: (RecyclerView.ViewHolder) -> Unit,
+    private val rowHeightIndex: () -> Int,
 ) : BaseDragAdapter<StoreItem, MainItemsAdapter.MainItemViewHolder>() {
 
     private val selectedPositions = mutableSetOf<Int>()
@@ -201,6 +203,7 @@ class MainItemsAdapter(
         }
 
         fun bind(storeItem: StoreItem, position: Int) {
+            binding.root.applyItemRowHeight(rowHeightIndex())
             binding.dragHandle.visibility = if (nextMode) View.GONE else View.VISIBLE
             if (nextMode) {
                 binding.purchaseHistoryView.bind(

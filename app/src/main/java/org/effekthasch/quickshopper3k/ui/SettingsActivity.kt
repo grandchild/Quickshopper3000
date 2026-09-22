@@ -6,6 +6,8 @@ import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.View
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -16,6 +18,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.room.withTransaction
 import com.google.android.material.button.MaterialButton
 import org.effekthasch.quickshopper3k.ui.DebugActivity
+import com.google.android.material.slider.Slider
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +37,7 @@ import org.effekthasch.quickshopper3k.data.sync.SyncManager
 import org.effekthasch.quickshopper3k.data.sync.SyncHttpClient
 import org.effekthasch.quickshopper3k.data.sync.SyncIntentSerializer
 import org.effekthasch.quickshopper3k.util.BackupManager
+import org.effekthasch.quickshopper3k.util.ItemRowHeight
 import org.effekthasch.quickshopper3k.util.PreferencesManager
 
 class SettingsActivity : AppCompatActivity() {
@@ -68,6 +72,7 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.versionText).text = versionText
 
         prefsManager = PreferencesManager(this)
+        setupRowHeightSlider()
         syncServerUriInput = findViewById(R.id.syncServerUriInput)
         syncServerUriInput.setText(prefsManager.syncServerUri ?: "")
 
@@ -115,6 +120,52 @@ class SettingsActivity : AppCompatActivity() {
                 pendingJoin = pj
                 lifecycleScope.launch { executeJoin(pj) }
             }
+        }
+    }
+
+    private fun setupRowHeightSlider() {
+        val slider = findViewById<Slider>(R.id.rowHeightSlider)
+        val preview = findViewById<LinearLayout>(R.id.rowHeightPreview)
+
+        slider.value = prefsManager.itemRowHeightIndex.toFloat()
+        updateRowHeightPreview(preview, prefsManager.itemRowHeightIndex)
+        slider.addOnChangeListener { _, value, fromUser ->
+            if (!fromUser) return@addOnChangeListener
+            val index = value.toInt()
+            prefsManager.itemRowHeightIndex = index
+            updateRowHeightPreview(preview, index)
+        }
+        slider.setOnTouchListener { _, event ->
+            if (event.actionMasked == android.view.MotionEvent.ACTION_UP ||
+                event.actionMasked == android.view.MotionEvent.ACTION_CANCEL
+            ) {
+                preview.visibility = View.GONE
+            }
+            false
+        }
+        slider.addOnSliderTouchListener(object : Slider.OnSliderTouchListener {
+            override fun onStartTrackingTouch(slider: Slider) {
+                preview.visibility = View.VISIBLE
+                updateRowHeightPreview(preview, slider.value.toInt())
+            }
+
+            override fun onStopTrackingTouch(slider: Slider) {
+                preview.visibility = View.GONE
+            }
+        })
+    }
+
+    private fun updateRowHeightPreview(preview: LinearLayout, index: Int) {
+        val height = ItemRowHeight.heightPx(resources.displayMetrics.density, index)
+        val labels = intArrayOf(
+            R.string.row_height_preview_item_one,
+            R.string.row_height_preview_item_two,
+            R.string.row_height_preview_item_three,
+        )
+        for (position in 0 until preview.childCount) {
+            val row = preview.getChildAt(position)
+            row.layoutParams = row.layoutParams.apply { this.height = height }
+            row.findViewById<TextView>(R.id.previewItemName).setText(labels[position])
         }
     }
 

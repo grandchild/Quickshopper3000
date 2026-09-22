@@ -69,7 +69,7 @@ class PurchaseHistoryView @JvmOverloads constructor(
             val diameter = (maximumDiameter * (0.45f + 0.12f * (occurrences - 1)))
                 .coerceAtMost(maximumDiameter)
             historyPaint.alpha = (220f * fade).toInt().coerceIn(0, 220)
-            canvas.drawCircle(x, height * 0.75f, diameter * 0.5f, historyPaint)
+            canvas.drawCircle(x, height * 0.5f, diameter * 0.5f, historyPaint)
         }
     }
 

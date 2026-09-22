@@ -3,6 +3,7 @@ package org.effekthasch.quickshopper3k
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.effekthasch.quickshopper3k.util.ItemRowHeight
 import org.effekthasch.quickshopper3k.util.PreferencesManager
 
 import org.junit.After
@@ -61,6 +62,21 @@ class PreferencesManagerTest {
 
         val newManager = PreferencesManager(context)
         assertEquals(123L, newManager.currentStoreId)
+    }
+
+    @Test
+    fun itemRowHeightIndex_defaultsToMiddle() {
+        assertEquals(ItemRowHeight.defaultIndex, prefsManager.itemRowHeightIndex)
+    }
+
+    @Test
+    fun itemRowHeightIndex_persistsAndStaysWithinRange() {
+        prefsManager.itemRowHeightIndex = ItemRowHeight.lastIndex
+
+        assertEquals(ItemRowHeight.lastIndex, PreferencesManager(context).itemRowHeightIndex)
+
+        prefsManager.itemRowHeightIndex = Int.MAX_VALUE
+        assertEquals(ItemRowHeight.lastIndex, prefsManager.itemRowHeightIndex)
     }
 
     @Test

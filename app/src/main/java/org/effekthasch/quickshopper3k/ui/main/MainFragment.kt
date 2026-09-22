@@ -71,7 +71,8 @@ class MainFragment :
         onItemLongClick = { storeItem, rawX, rawY ->
             showItemContextMenu(storeItem, rawX, rawY)
         },
-        onStartDrag = { holder -> enableDragOn(holder) }
+        onStartDrag = { holder -> enableDragOn(holder) },
+        rowHeightIndex = { prefsManager.itemRowHeightIndex },
         )
         return mainItemsAdapter
     }
@@ -240,6 +241,7 @@ class MainFragment :
         super.onResume()
         viewModel.refreshForecasts()
         viewModel.setFlushRecentlyDoneAt(prefsManager.flushRecentlyDoneAt)
+        mainItemsAdapter.notifyDataSetChanged()
         activity?.invalidateOptionsMenu()
         (activity as? MainActivity)?.updateStoreSelectorButton()
         (activity as? MainActivity)?.updateDoneVisibilityButton()

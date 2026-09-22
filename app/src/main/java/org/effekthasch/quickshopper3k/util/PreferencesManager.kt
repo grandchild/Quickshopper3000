@@ -79,6 +79,14 @@ class PreferencesManager(context: Context) {
             prefs.edit().putBoolean(KEY_IS_LEFT_HANDED, value).apply()
         }
 
+    var itemRowHeightIndex: Int
+        get() = ItemRowHeight.index(
+            prefs.getInt(KEY_ITEM_ROW_HEIGHT_INDEX, ItemRowHeight.defaultIndex)
+        )
+        set(value) {
+            prefs.edit().putInt(KEY_ITEM_ROW_HEIGHT_INDEX, ItemRowHeight.index(value)).apply()
+        }
+
     var doneVisibilityMode: ItemVisibilityMode
         get() {
             val value = prefs.getString(KEY_DONE_VISIBILITY_MODE, "current") ?: "current"
@@ -175,6 +183,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_CURRENT_STORE_ID = "current_store_id"
         private const val KEY_SELECTED_SHOP_STORE_IDS = "selected_shop_store_ids"
         private const val KEY_IS_LEFT_HANDED = "is_left_handed"
+        private const val KEY_ITEM_ROW_HEIGHT_INDEX = "item_row_height_index"
 
         private const val KEY_DONE_VISIBILITY_MODE = "done_visibility_mode"
         private const val KEY_RECENTLY_DONE_MINUTES = "recently_done_minutes"

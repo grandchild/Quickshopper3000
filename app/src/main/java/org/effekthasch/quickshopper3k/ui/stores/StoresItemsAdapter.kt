@@ -8,12 +8,14 @@ import org.effekthasch.quickshopper3k.R
 import org.effekthasch.quickshopper3k.databinding.ItemShoppingItemBinding
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
 import org.effekthasch.quickshopper3k.ui.common.BaseDragAdapter
+import org.effekthasch.quickshopper3k.ui.common.applyItemRowHeight
 import org.effekthasch.quickshopper3k.ui.common.bindItemText
 
 class StoresItemsAdapter(
     private val onItemClick: () -> Boolean,
     private val onItemLongClick: (StoreItem) -> Unit,
-    private val onStartDrag: (RecyclerView.ViewHolder) -> Unit
+    private val onStartDrag: (RecyclerView.ViewHolder) -> Unit,
+    private val rowHeightIndex: () -> Int,
 ) : BaseDragAdapter<StoreItem, StoresItemsAdapter.StoresItemViewHolder>() {
 
     private val selectedPositions = mutableSetOf<Int>()
@@ -168,6 +170,7 @@ class StoresItemsAdapter(
         }
 
         fun bind(storeItem: StoreItem, position: Int) {
+            binding.root.applyItemRowHeight(rowHeightIndex())
             binding.itemNameText.bindItemText(storeItem.item)
 
             binding.itemStateIcon.visibility = View.GONE

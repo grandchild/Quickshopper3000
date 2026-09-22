@@ -71,6 +71,10 @@
     <!-- Preferences -->
 
     <string name="flush_recently_done">Flush recently done</string>
+    <string name="row_height">Item size</string>
+    <string name="row_height_preview_item_one">Milk</string>
+    <string name="row_height_preview_item_two">Pasta</string>
+    <string name="row_height_preview_item_three">Tomatoes</string>
     <string name="sync_server">Sync server</string>
     <string name="sync_server_hint">Sync server</string>
     <string name="sync_sharing">List sharing</string>
