@@ -94,7 +94,7 @@ class BackupManager(private val context: Context) {
             }
 
             val dbVersion = readDatabaseUserVersion(dbFile)
-            if (dbVersion != null && dbVersion !in 7..8) {
+            if (dbVersion != null && dbVersion !in 7..9) {
                 tempDir.deleteRecursively()
                 return@withContext Result.failure(LegacyBackupException())
             }
