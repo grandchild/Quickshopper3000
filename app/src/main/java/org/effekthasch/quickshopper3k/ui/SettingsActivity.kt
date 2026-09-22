@@ -248,7 +248,14 @@ class SettingsActivity : AppCompatActivity() {
                 val db = AppDatabase.getDatabase(this@SettingsActivity)
                 db.withTransaction {
                     db.clearAllTables()
-                    val applier = IntentApplier(db.itemDao(), db.storeDao(), db.syncDao())
+                    val applier = IntentApplier(
+                        db.itemDao(),
+                        db.storeDao(),
+                        db.syncDao(),
+                        { prefsManager.historyDays },
+                        { prefsManager.mistakeDoneSeconds },
+                        { prefsManager.reactivateMinSeconds }
+                    )
                     for (i in 0 until intents.length()) {
                         val json = intents.getJSONObject(i)
                         val envelope = SyncIntentSerializer.fromJson(json) ?: continue
@@ -292,7 +299,10 @@ class SettingsActivity : AppCompatActivity() {
                         ExampleItemsSeeder(database).seedIfEmpty()
                         prefsManager.exampleItemsInitialized = true
                     }
-                }
+                },
+                historyDaysProvider = { prefsManager.historyDays },
+                mistakeDoneSecondsProvider = { prefsManager.mistakeDoneSeconds },
+                reactivateMinSecondsProvider = { prefsManager.reactivateMinSeconds }
             ).syncNow()
         }
     }

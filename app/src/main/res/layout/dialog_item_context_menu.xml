@@ -72,6 +72,21 @@
     </LinearLayout>
 
     <TextView
+        android:id="@+id/contextMenuBought"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
+        android:text="@string/context_menu_bought"
+        android:textSize="14sp"
+        android:textColor="?android:attr/textColorPrimary"
+        android:background="?attr/selectableItemBackground"
+        android:visibility="gone"
+    />
+
+    <TextView
         android:id="@+id/contextMenuEdit"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

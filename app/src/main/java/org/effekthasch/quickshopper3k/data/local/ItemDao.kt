@@ -40,6 +40,9 @@ interface ItemDao {
     @Query("SELECT * FROM items")
     suspend fun getAllItems(): List<ItemEntity>
 
+    @Query("SELECT * FROM items")
+    fun getAllItemsFlow(): Flow<List<ItemEntity>>
+
     @Query("SELECT name FROM items")
     suspend fun getAllItemNames(): List<String>
 
@@ -90,6 +93,9 @@ interface ItemDao {
 
     @Insert
     suspend fun insertItemAddHistories(histories: List<ItemAddHistoryEntity>): List<Long>
+
+    @Query("SELECT * FROM item_add_history ORDER BY item_id, added_at")
+    fun getAllItemAddHistory(): Flow<List<ItemAddHistoryEntity>>
 
     @Query("SELECT * FROM item_add_history WHERE item_id = :itemId ORDER BY added_at DESC LIMIT 1")
     suspend fun getLatestItemAddHistory(itemId: Long): ItemAddHistoryEntity?

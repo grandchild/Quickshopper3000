@@ -36,7 +36,7 @@ import org.effekthasch.quickshopper3k.domain.model.ItemText
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
 import org.effekthasch.quickshopper3k.ui.FabController
 import org.effekthasch.quickshopper3k.ui.common.bindItemAmountBadge
-import org.effekthasch.quickshopper3k.util.DoneVisibilityMode
+import org.effekthasch.quickshopper3k.util.ItemVisibilityMode
 import org.effekthasch.quickshopper3k.util.PreferencesManager
 
 class MainFragment :
@@ -47,6 +47,7 @@ class MainFragment :
     private val binding get() = _binding!!
 
     private lateinit var viewModel: MainViewModel
+    private lateinit var mainItemsAdapter: MainItemsAdapter
     private lateinit var prefsManager: PreferencesManager
 
     private var currentStoreName: String? = null
@@ -55,7 +56,8 @@ class MainFragment :
 
     private class ImportPreviewColorSpan(color: Int) : ForegroundColorSpan(color)
 
-    override fun provideAdapter() = MainItemsAdapter(
+    override fun provideAdapter(): MainItemsAdapter {
+        mainItemsAdapter = MainItemsAdapter(
         onItemClick = { storeItem ->
             if (binding.searchContainer.visibility == View.VISIBLE &&
                 viewModel.searchQuery.value?.isNotBlank() == true
@@ -70,7 +72,9 @@ class MainFragment :
             showItemContextMenu(storeItem, rawX, rawY)
         },
         onStartDrag = { holder -> enableDragOn(holder) }
-    )
+        )
+        return mainItemsAdapter
+    }
 
     override fun onSwipeLeft(item: StoreItem) {
         viewModel.handleSwipeLeft(item.item)
@@ -234,6 +238,7 @@ class MainFragment :
 
     override fun onResume() {
         super.onResume()
+        viewModel.refreshForecasts()
         viewModel.setFlushRecentlyDoneAt(prefsManager.flushRecentlyDoneAt)
         activity?.invalidateOptionsMenu()
         (activity as? MainActivity)?.updateStoreSelectorButton()
@@ -379,18 +384,28 @@ class MainFragment :
             }
         }
 
-        viewModel.doneVisibilityMode.observe(viewLifecycleOwner) {
+        viewModel.doneVisibilityMode.observe(viewLifecycleOwner) { mode ->
+            val isNext = mode == ItemVisibilityMode.NEXT
+            mainItemsAdapter.setNextMode(isNext)
+            if (isNext) {
+                binding.itemsRecyclerView.scrollToPosition(0)
+            }
             (activity as? MainActivity)?.updateDoneVisibilityButton()
+        }
+
+        viewModel.purchaseInsights.observe(viewLifecycleOwner) { insights ->
+            mainItemsAdapter.setPurchaseInsights(insights.histories, insights.forecasts)
         }
     }
 
     fun cycleDoneVisibilityMode() {
         viewModel.cycleDoneVisibilityMode()
-        prefsManager.doneVisibilityMode = viewModel.doneVisibilityMode.value ?: DoneVisibilityMode.CURRENT
+        prefsManager.doneVisibilityMode = viewModel.doneVisibilityMode.value ?: ItemVisibilityMode.CURRENT
     }
 
-    fun getDoneVisibilityMode(): DoneVisibilityMode {
-        return viewModel.doneVisibilityMode.value ?: DoneVisibilityMode.CURRENT
+    fun getDoneVisibilityMode(): ItemVisibilityMode {
+        if (!::viewModel.isInitialized) return ItemVisibilityMode.CURRENT
+        return viewModel.doneVisibilityMode.value ?: ItemVisibilityMode.CURRENT
     }
 
     private fun updateStoreMenuTitle() {
@@ -431,9 +446,11 @@ class MainFragment :
     }
 
     fun getStoreMenuTitle(): String {
+        val indicator = getString(R.string.store_indicator)
+        if (!::viewModel.isInitialized) return indicator
+
         val currentStoreId = viewModel.currentStoreId.value
         val stores = viewModel.stores.value
-        val indicator = getString(R.string.store_indicator)
 
         if (currentStoreId == null || stores == null) {
             return indicator
@@ -501,6 +518,13 @@ class MainFragment :
         val menuBinding = DialogItemContextMenuBinding.inflate(layoutInflater)
 
         val storeSelected = viewModel.isStoreSelected()
+        menuBinding.contextMenuBought.visibility = if (
+            viewModel.doneVisibilityMode.value == ItemVisibilityMode.NEXT
+        ) {
+            View.VISIBLE
+        } else {
+            View.GONE
+        }
         if (storeSelected) {
             menuBinding.contextMenuUnavailable.text = if (storeItem.isAvailable) {
                 getString(R.string.context_menu_unavailable)
@@ -588,6 +612,15 @@ class MainFragment :
             (rawY - anchorLocation[1]).toInt()
         } else {
             (rawY - anchorLocation[1] - menuHeight).toInt()
+        }
+
+        menuBinding.contextMenuBought.setOnClickListener {
+            popup.dismiss()
+            viewModel.recordBought(storeItem.item.id) { result ->
+                result.onFailure {
+                    Snackbar.make(binding.root, R.string.error_occurred, Snackbar.LENGTH_SHORT).show()
+                }
+            }
         }
 
         menuBinding.contextMenuEdit.setOnClickListener {

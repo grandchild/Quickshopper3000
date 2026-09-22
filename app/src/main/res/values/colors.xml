@@ -9,6 +9,7 @@
     <color name="white">#FFFFFFFF</color>
 
     <color name="selection_highlight">#90CAF9</color>
+    <color name="purchase_prediction">#D32F2F</color>
 
 
     <color name="import_preview_existing">#9E9E9E</color>

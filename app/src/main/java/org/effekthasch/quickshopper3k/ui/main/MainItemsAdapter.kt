@@ -9,6 +9,7 @@ import org.effekthasch.quickshopper3k.R
 import org.effekthasch.quickshopper3k.databinding.ItemShoppingItemBinding
 import org.effekthasch.quickshopper3k.domain.model.ItemState
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
+import org.effekthasch.quickshopper3k.domain.statistics.PurchaseForecast
 import org.effekthasch.quickshopper3k.ui.common.BaseDragAdapter
 import org.effekthasch.quickshopper3k.ui.common.bindItemAmountBadge
 import org.effekthasch.quickshopper3k.ui.common.bindItemText
@@ -20,8 +21,27 @@ class MainItemsAdapter(
 ) : BaseDragAdapter<StoreItem, MainItemsAdapter.MainItemViewHolder>() {
 
     private val selectedPositions = mutableSetOf<Int>()
+    private var historyByItemId: Map<Long, List<Long>> = emptyMap()
+    private var forecastByItemId: Map<Long, PurchaseForecast> = emptyMap()
+    private var nextMode = false
 
     override fun getStableId(item: StoreItem): Long = item.item.id
+
+    fun setPurchaseInsights(
+        historyByItemId: Map<Long, List<Long>>,
+        forecastByItemId: Map<Long, PurchaseForecast>
+    ) {
+        this.historyByItemId = historyByItemId
+        this.historyByItemId = historyByItemId
+        this.forecastByItemId = forecastByItemId
+        notifyDataSetChanged()
+    }
+
+    fun setNextMode(nextMode: Boolean) {
+        if (this.nextMode == nextMode) return
+        this.nextMode = nextMode
+        notifyDataSetChanged()
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MainItemViewHolder {
         val binding = ItemShoppingItemBinding.inflate(
@@ -181,6 +201,20 @@ class MainItemsAdapter(
         }
 
         fun bind(storeItem: StoreItem, position: Int) {
+            binding.dragHandle.visibility = if (nextMode) View.GONE else View.VISIBLE
+            if (nextMode) {
+                binding.purchaseHistoryView.bind(
+                    activations = historyByItemId[storeItem.item.id].orEmpty(),
+                    forecast = forecastByItemId[storeItem.item.id],
+                    showPrediction = storeItem.item.state == ItemState.DEACTIVATED
+                )
+            } else {
+                binding.purchaseHistoryView.bind(
+                    activations = emptyList(),
+                    forecast = null,
+                    showPrediction = false
+                )
+            }
             binding.itemNameText.bindItemText(storeItem.item)
 
             binding.itemAmountText.bindItemAmountBadge(storeItem.item.amount)

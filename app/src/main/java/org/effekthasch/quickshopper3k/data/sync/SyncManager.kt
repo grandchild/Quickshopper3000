@@ -12,16 +12,27 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.effekthasch.quickshopper3k.data.local.AppDatabase
 import org.effekthasch.quickshopper3k.data.local.SyncStateEntity
+import org.effekthasch.quickshopper3k.data.repository.ShoppingRepository
 
 class SyncManager(
     private val database: AppDatabase,
     private val serverUrlProvider: () -> String?,
     private val deviceIdProvider: () -> String,
     private val listIdProvider: () -> String,
-    private val initializeEmptyList: suspend () -> Unit = {}
+    private val initializeEmptyList: suspend () -> Unit = {},
+    private val historyDaysProvider: () -> Int = { ShoppingRepository.DEFAULT_HISTORY_DAYS },
+    private val mistakeDoneSecondsProvider: () -> Int = { ShoppingRepository.DEFAULT_MISTAKE_DONE_SECONDS },
+    private val reactivateMinSecondsProvider: () -> Int = { ShoppingRepository.DEFAULT_REACTIVATE_MIN_SECONDS }
 ) {
     private val syncDao = database.syncDao()
-    private val applier = IntentApplier(database.itemDao(), database.storeDao(), syncDao)
+    private val applier = IntentApplier(
+        database.itemDao(),
+        database.storeDao(),
+        syncDao,
+        historyDaysProvider,
+        mistakeDoneSecondsProvider,
+        reactivateMinSecondsProvider
+    )
 
     private var pollJob: Job? = null
 

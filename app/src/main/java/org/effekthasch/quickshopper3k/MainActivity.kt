@@ -18,7 +18,7 @@ import org.effekthasch.quickshopper3k.data.sync.SyncManager
 import org.effekthasch.quickshopper3k.databinding.ActivityMainBinding
 import org.effekthasch.quickshopper3k.ui.FabController
 import org.effekthasch.quickshopper3k.ui.MainPagerAdapter
-import org.effekthasch.quickshopper3k.util.DoneVisibilityMode
+import org.effekthasch.quickshopper3k.util.ItemVisibilityMode
 import org.effekthasch.quickshopper3k.util.PreferencesManager
 import kotlin.math.abs
 
@@ -47,7 +47,10 @@ class MainActivity : AppCompatActivity() {
             serverUrlProvider = { prefsManager.syncServerUri },
             deviceIdProvider = { prefsManager.deviceId },
             listIdProvider = { prefsManager.listId },
-            initializeEmptyList = initializeEmptyList
+            initializeEmptyList = initializeEmptyList,
+            historyDaysProvider = { prefsManager.historyDays },
+            mistakeDoneSecondsProvider = { prefsManager.mistakeDoneSeconds },
+            reactivateMinSecondsProvider = { prefsManager.reactivateMinSeconds }
         )
 
         setupBottomAppBar()
@@ -179,7 +182,7 @@ class MainActivity : AppCompatActivity() {
         if (currentPage == 1) {
             binding.doneVisibilityButton.visibility = android.view.View.VISIBLE
             val mainFragment = getCurrentFragment() as? org.effekthasch.quickshopper3k.ui.main.MainFragment
-            val mode = mainFragment?.getDoneVisibilityMode() ?: DoneVisibilityMode.CURRENT
+            val mode = mainFragment?.getDoneVisibilityMode() ?: ItemVisibilityMode.CURRENT
             binding.doneVisibilityButton.text = mode.label()
         } else {
             binding.doneVisibilityButton.visibility = android.view.View.GONE

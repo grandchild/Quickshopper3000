@@ -1,20 +1,29 @@
 package org.effekthasch.quickshopper3k.data.sync
 
+import org.effekthasch.quickshopper3k.data.history.PurchaseHistoryRecorder
+import org.effekthasch.quickshopper3k.data.history.PurchaseHistorySettings
+import org.effekthasch.quickshopper3k.data.history.RoomPurchaseHistoryRecorder
 import org.effekthasch.quickshopper3k.data.local.ItemDao
 import org.effekthasch.quickshopper3k.data.local.ItemEntity
-import org.effekthasch.quickshopper3k.data.local.ItemStateEntity
 import org.effekthasch.quickshopper3k.data.local.StoreDao
 import org.effekthasch.quickshopper3k.data.local.StoreEntity
 import org.effekthasch.quickshopper3k.data.local.StoreItemOrderEntity
 import org.effekthasch.quickshopper3k.data.local.SyncDao
 import org.effekthasch.quickshopper3k.data.local.SyncTombstoneEntity
+import org.effekthasch.quickshopper3k.data.repository.ShoppingRepository
+import org.effekthasch.quickshopper3k.domain.model.ItemState
 import org.effekthasch.quickshopper3k.util.Ulid
 
 class IntentApplier(
     private val itemDao: ItemDao,
     private val storeDao: StoreDao,
-    private val syncDao: SyncDao
+    private val syncDao: SyncDao,
+    private val historyDaysProvider: () -> Int = { ShoppingRepository.DEFAULT_HISTORY_DAYS },
+    private val mistakeDoneSecondsProvider: () -> Int = { ShoppingRepository.DEFAULT_MISTAKE_DONE_SECONDS },
+    private val reactivateMinSecondsProvider: () -> Int = { ShoppingRepository.DEFAULT_REACTIVATE_MIN_SECONDS }
 ) {
+
+    private val historyRecorder: PurchaseHistoryRecorder = RoomPurchaseHistoryRecorder(itemDao)
 
     private val statePriority = mapOf(
         "DEACTIVATED" to 0,
@@ -50,7 +59,7 @@ class IntentApplier(
         if (syncDao.isTombstoned(intent.itemUuid) != null) return
         if (itemDao.getItemByUuid(intent.itemUuid) != null) return
         val now = Ulid.timestamp(intent.itemUuid)
-        itemDao.insertItem(
+        val itemId = itemDao.insertItem(
             ItemEntity(
                 uuid = intent.itemUuid,
                 name = intent.name,
@@ -59,6 +68,7 @@ class IntentApplier(
                 createdAt = now
             )
         )
+        recordItemAdded(itemId, now)
     }
 
     private suspend fun deleteItem(intent: SyncIntent.DeleteItem, serverUlid: String) {
@@ -100,8 +110,28 @@ class IntentApplier(
             if (incomingPriority >= currentPriority) return
         }
 
+        val now = System.currentTimeMillis()
+        val state = ItemState.fromString(intent.state)
         itemDao.setItemState(item.id, intent.state)
+        historyRecorder.recordStateChange(
+            itemId = item.id,
+            previousState = ItemState.fromString(currentState),
+            previousStateChangedAt = currentStateEntity?.stateChangedAt,
+            state = state,
+            at = now,
+            settings = historySettings()
+        )
     }
+
+    private suspend fun recordItemAdded(itemId: Long, addedAt: Long) {
+        historyRecorder.recordActivation(itemId, addedAt, historySettings())
+    }
+
+    private fun historySettings() = PurchaseHistorySettings(
+        retentionDays = historyDaysProvider(),
+        mistakeDoneSeconds = mistakeDoneSecondsProvider(),
+        reactivateMinSeconds = reactivateMinSecondsProvider()
+    )
 
     private suspend fun setItemAmount(intent: SyncIntent.SetItemAmount) {
         if (syncDao.isTombstoned(intent.itemUuid) != null) return

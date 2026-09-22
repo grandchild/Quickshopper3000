@@ -1,14 +1,18 @@
 package org.effekthasch.quickshopper3k.data.repository
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import org.effekthasch.quickshopper3k.data.history.PurchaseHistorySettings
+import org.effekthasch.quickshopper3k.data.history.PurchaseHistoryRecorder
+import org.effekthasch.quickshopper3k.data.history.RoomPurchaseHistoryRecorder
 import org.effekthasch.quickshopper3k.data.local.AppDatabase
-import org.effekthasch.quickshopper3k.data.local.ItemAddHistoryEntity
 import org.effekthasch.quickshopper3k.data.local.ItemEntity
 import org.effekthasch.quickshopper3k.data.local.StoreEntity
 import org.effekthasch.quickshopper3k.data.sync.IntentEmitter
 import org.effekthasch.quickshopper3k.data.sync.SyncIntent
 import org.effekthasch.quickshopper3k.domain.model.Item
+import org.effekthasch.quickshopper3k.domain.statistics.PurchaseHistory
 import org.effekthasch.quickshopper3k.domain.model.ItemInput
 import org.effekthasch.quickshopper3k.domain.model.ItemState
 import org.effekthasch.quickshopper3k.domain.model.ItemText
@@ -19,11 +23,12 @@ import org.effekthasch.quickshopper3k.util.Ulid
 class ShoppingRepository(private val database: AppDatabase) {
     private val itemDao = database.itemDao()
     private val storeDao = database.storeDao()
+    private val historyRecorder: PurchaseHistoryRecorder = RoomPurchaseHistoryRecorder(itemDao)
     private val emitter = IntentEmitter(database.syncDao())
 
     companion object {
         const val DEFAULT_STORE_ID = 0L
-        const val DEFAULT_HISTORY_DAYS = 183
+        const val DEFAULT_HISTORY_DAYS = 1095
         const val DEFAULT_MISTAKE_DONE_SECONDS = 20
         const val DEFAULT_REACTIVATE_MIN_SECONDS = 3600
     }
@@ -41,6 +46,28 @@ class ShoppingRepository(private val database: AppDatabase) {
                     createdAt = itemWithState.created_at,
                     stateChangedAt = itemWithState.state_changed_at,
                     amount = itemWithState.amount
+                )
+            }
+        }
+    }
+
+    fun getPurchaseHistories(): Flow<List<PurchaseHistory>> {
+        return combine(itemDao.getAllItemsFlow(), itemDao.getAllItemAddHistory()) { items, history ->
+            val historyByItemId = history.groupBy { it.itemId }
+            items.map { item ->
+                val itemHistory = historyByItemId[item.id].orEmpty()
+                val firstHistoryAt = itemHistory.firstOrNull()?.addedAt
+                val observedFrom = if (
+                    firstHistoryAt != null && firstHistoryAt - item.createdAt > 24 * 60 * 60 * 1000L
+                ) {
+                    firstHistoryAt
+                } else {
+                    item.createdAt
+                }
+                PurchaseHistory(
+                    itemId = item.id,
+                    observedFrom = observedFrom,
+                    activations = itemHistory.map { it.addedAt }
                 )
             }
         }
@@ -163,6 +190,21 @@ class ShoppingRepository(private val database: AppDatabase) {
         }
     }
 
+    suspend fun recordPurchase(
+        itemId: Long,
+        historyDays: Int = DEFAULT_HISTORY_DAYS
+    ): Result<Unit> {
+        return try {
+            if (itemDao.getItemById(itemId) == null) {
+                return Result.failure(IllegalArgumentException("Item not found"))
+            }
+            recordItemAdded(itemId, System.currentTimeMillis(), historyDays)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun deleteItem(itemId: Long): Result<Unit> {
         return try {
             val uuid = itemDao.getUuidById(itemId)
@@ -189,37 +231,19 @@ class ShoppingRepository(private val database: AppDatabase) {
             val existingState = itemDao.getItemState(itemId)
             val previousState = existingState?.state ?: ItemState.ACTIVATED.toString()
 
-            when (state) {
-                ItemState.ACTIVATED -> {
-                    val lastDoneAt = if (existingState?.state == ItemState.DEACTIVATED.toString()) {
-                        existingState.stateChangedAt
-                    } else {
-                        null
-                    }
-
-                    itemDao.setItemState(itemId, state.toString())
-
-                    val shouldRecord = existingState?.state == ItemState.DEACTIVATED.toString() &&
-                            (lastDoneAt == null || now - lastDoneAt > reactivateMinSeconds * 1000L)
-
-                    if (shouldRecord) {
-                        recordItemAdded(itemId, now, historyDays)
-                    }
-                }
-
-                ItemState.DEACTIVATED -> {
-                    itemDao.setItemState(itemId, state.toString())
-                    val latestHistory = itemDao.getLatestItemAddHistory(itemId)
-                    val mistakeThresholdMs = mistakeDoneSeconds * 1000L
-                    if (latestHistory != null && now - latestHistory.addedAt <= mistakeThresholdMs) {
-                        itemDao.deleteItemAddHistoryById(latestHistory.id)
-                    }
-                }
-
-                ItemState.POSTPONED -> {
-                    itemDao.setItemState(itemId, state.toString())
-                }
-            }
+            itemDao.setItemState(itemId, state.toString())
+            historyRecorder.recordStateChange(
+                itemId = itemId,
+                previousState = ItemState.fromString(previousState),
+                previousStateChangedAt = existingState?.stateChangedAt,
+                state = state,
+                at = now,
+                settings = PurchaseHistorySettings(
+                    retentionDays = historyDays,
+                    mistakeDoneSeconds = mistakeDoneSeconds,
+                    reactivateMinSeconds = reactivateMinSeconds
+                )
+            )
 
             val uuid = itemDao.getUuidById(itemId)
             if (uuid != null) {
@@ -233,14 +257,15 @@ class ShoppingRepository(private val database: AppDatabase) {
     }
 
     private suspend fun recordItemAdded(itemId: Long, addedAt: Long, historyDays: Int) {
-        itemDao.insertItemAddHistory(ItemAddHistoryEntity(itemId = itemId, addedAt = addedAt))
-        val cutoff = historyCutoff(addedAt, historyDays)
-        itemDao.deleteItemAddHistoryOlderThan(cutoff)
-    }
-
-    private fun historyCutoff(addedAt: Long, historyDays: Int): Long {
-        val safeDays = if (historyDays <= 0) 1 else historyDays
-        return addedAt - safeDays * 24 * 60 * 60 * 1000L
+        historyRecorder.recordActivation(
+            itemId,
+            addedAt,
+            PurchaseHistorySettings(
+                retentionDays = historyDays,
+                mistakeDoneSeconds = DEFAULT_MISTAKE_DONE_SECONDS,
+                reactivateMinSeconds = DEFAULT_REACTIVATE_MIN_SECONDS
+            )
+        )
     }
 
     fun getAllStores(): Flow<List<Store>> {
@@ -442,54 +467,23 @@ class ShoppingRepository(private val database: AppDatabase) {
             val now = System.currentTimeMillis()
             val allItems = itemDao.getAllItems()
             val allStatesMap = itemDao.getAllItemStates().associateBy { it.itemId }
-            val deactivatedStates = allStatesMap.values.filter { it.state == ItemState.DEACTIVATED.toString() }
-            val nonDeactivatedItemIds = allItems.mapNotNull { item ->
-                val existing = allStatesMap[item.id]
-                if (existing?.state != ItemState.DEACTIVATED.toString()) item.id else null
-            }
+            val settings = PurchaseHistorySettings(
+                retentionDays = historyDays,
+                mistakeDoneSeconds = mistakeDoneSeconds,
+                reactivateMinSeconds = reactivateMinSeconds
+            )
 
-            when (state) {
-                ItemState.ACTIVATED -> {
-                    val reactivateThresholdMs = reactivateMinSeconds * 1000L
-                    val cutoff = historyCutoff(now, historyDays)
-
-                    val toRecord = deactivatedStates.mapNotNull { stateEntity ->
-                        val lastDoneAt = stateEntity.stateChangedAt
-                        if (lastDoneAt == null || now - lastDoneAt > reactivateThresholdMs) {
-                            ItemAddHistoryEntity(itemId = stateEntity.itemId, addedAt = now)
-                        } else {
-                            null
-                        }
-                    }
-
-                    itemDao.setAllItemsToState(state.toString())
-
-                    if (toRecord.isNotEmpty()) {
-                        itemDao.insertItemAddHistories(toRecord)
-                        itemDao.deleteItemAddHistoryOlderThan(cutoff)
-                    }
-                }
-
-                ItemState.DEACTIVATED -> {
-                    val mistakeThresholdMs = mistakeDoneSeconds * 1000L
-
-                    val affectedIds = nonDeactivatedItemIds
-
-                    itemDao.setAllItemsToState(state.toString())
-
-                    if (affectedIds.isNotEmpty()) {
-                        val latestHistories = itemDao.getLatestItemAddHistoryForItemIds(affectedIds)
-                        val idsToDelete =
-                            latestHistories.filter { now - it.addedAt <= mistakeThresholdMs }.map { it.id }
-                        if (idsToDelete.isNotEmpty()) {
-                            itemDao.deleteItemAddHistoryByIds(idsToDelete)
-                        }
-                    }
-                }
-
-                ItemState.POSTPONED -> {
-                    itemDao.setAllItemsToState(state.toString())
-                }
+            itemDao.setAllItemsToState(state.toString())
+            allItems.forEach { item ->
+                val previousState = allStatesMap[item.id]
+                historyRecorder.recordStateChange(
+                    itemId = item.id,
+                    previousState = ItemState.fromString(previousState?.state ?: ItemState.ACTIVATED.toString()),
+                    previousStateChangedAt = previousState?.stateChangedAt,
+                    state = state,
+                    at = now,
+                    settings = settings
+                )
             }
 
             val uuids = allItems.map { it.uuid }
@@ -503,34 +497,13 @@ class ShoppingRepository(private val database: AppDatabase) {
         }
     }
 
-    suspend fun activateAllPostponed(
-        historyDays: Int = DEFAULT_HISTORY_DAYS,
-        reactivateMinSeconds: Int = DEFAULT_REACTIVATE_MIN_SECONDS
-    ): Result<Unit> {
+    suspend fun activateAllPostponed(): Result<Unit> {
         return try {
-            val now = System.currentTimeMillis()
             val postponedStates = itemDao.getAllPostponedStates()
             if (postponedStates.isEmpty()) return Result.success(Unit)
 
-            val reactivateThresholdMs = reactivateMinSeconds * 1000L
-            val cutoff = historyCutoff(now, historyDays)
-
-            val toRecord = postponedStates.mapNotNull { stateEntity ->
-                val lastChangedAt = stateEntity.stateChangedAt
-                if (lastChangedAt == null || now - lastChangedAt > reactivateThresholdMs) {
-                    ItemAddHistoryEntity(itemId = stateEntity.itemId, addedAt = now)
-                } else {
-                    null
-                }
-            }
-
             val postponedItemIds = postponedStates.map { it.itemId }
             itemDao.deleteAllPostponedStates()
-
-            if (toRecord.isNotEmpty()) {
-                itemDao.insertItemAddHistories(toRecord)
-                itemDao.deleteItemAddHistoryOlderThan(cutoff)
-            }
 
             val uuids = itemDao.getUuidsByIds(postponedItemIds)
             if (uuids.isNotEmpty()) {

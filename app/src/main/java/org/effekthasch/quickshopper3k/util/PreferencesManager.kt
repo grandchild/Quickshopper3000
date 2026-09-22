@@ -4,24 +4,28 @@ import android.content.Context
 import android.content.SharedPreferences
 import org.effekthasch.quickshopper3k.util.Ulid
 
-enum class DoneVisibilityMode {
+enum class ItemVisibilityMode {
     CURRENT,
-    ALL;
+    ALL,
+    NEXT;
 
-    fun next(): DoneVisibilityMode = when (this) {
+    fun next(): ItemVisibilityMode = when (this) {
         CURRENT -> ALL
-        ALL -> CURRENT
+        ALL -> NEXT
+        NEXT -> CURRENT
     }
 
     fun label(): String = when (this) {
         CURRENT -> "current"
         ALL -> "all"
+        NEXT -> "next"
     }
 
     companion object {
-        fun fromString(value: String): DoneVisibilityMode = when (value.lowercase()) {
+        fun fromString(value: String): ItemVisibilityMode = when (value.lowercase()) {
             "current" -> CURRENT
             "all" -> ALL
+            "next" -> NEXT
             else -> CURRENT
         }
     }
@@ -75,10 +79,10 @@ class PreferencesManager(context: Context) {
             prefs.edit().putBoolean(KEY_IS_LEFT_HANDED, value).apply()
         }
 
-    var doneVisibilityMode: DoneVisibilityMode
+    var doneVisibilityMode: ItemVisibilityMode
         get() {
             val value = prefs.getString(KEY_DONE_VISIBILITY_MODE, "current") ?: "current"
-            return DoneVisibilityMode.fromString(value)
+            return ItemVisibilityMode.fromString(value)
         }
         set(value) {
             prefs.edit().putString(KEY_DONE_VISIBILITY_MODE, value.name.lowercase()).apply()
@@ -91,7 +95,7 @@ class PreferencesManager(context: Context) {
         }
 
     var historyDays: Int
-        get() = prefs.getInt(KEY_HISTORY_DAYS, 183)
+        get() = prefs.getInt(KEY_HISTORY_DAYS, 1095)
         set(value) {
             prefs.edit().putInt(KEY_HISTORY_DAYS, value).apply()
         }

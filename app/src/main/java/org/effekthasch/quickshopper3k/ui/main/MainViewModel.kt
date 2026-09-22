@@ -6,9 +6,12 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.effekthasch.quickshopper3k.data.repository.ShoppingRepository
 import org.effekthasch.quickshopper3k.domain.model.Item
 import org.effekthasch.quickshopper3k.domain.model.ItemIdentity
@@ -17,7 +20,9 @@ import org.effekthasch.quickshopper3k.domain.model.ItemState
 import org.effekthasch.quickshopper3k.domain.model.ItemText
 import org.effekthasch.quickshopper3k.domain.model.Store
 import org.effekthasch.quickshopper3k.domain.model.StoreItem
-import org.effekthasch.quickshopper3k.util.DoneVisibilityMode
+import org.effekthasch.quickshopper3k.domain.statistics.PurchaseInsights
+import org.effekthasch.quickshopper3k.domain.statistics.PurchaseStatistics
+import org.effekthasch.quickshopper3k.util.ItemVisibilityMode
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
@@ -34,13 +39,14 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
 
     private val _currentStoreId = MutableStateFlow<Long?>(null)
     private val _searchQuery = MutableLiveData("")
-    private val _doneVisibilityMode = MutableLiveData(DoneVisibilityMode.CURRENT)
+    private val _doneVisibilityMode = MutableLiveData(ItemVisibilityMode.CURRENT)
     private val _recentlyDoneMinutes = MutableLiveData(60)
-    private val _historyDays = MutableLiveData(183)
+    private val _historyDays = MutableLiveData(ShoppingRepository.DEFAULT_HISTORY_DAYS)
     private val _mistakeDoneSeconds = MutableLiveData(20)
     private val _reactivateMinSeconds = MutableLiveData(3600)
     private val _flushRecentlyDoneAt = MutableLiveData<Long?>(null)
     private val _isDragging = MutableLiveData(false)
+    private val _forecastNow = MutableStateFlow(System.currentTimeMillis())
     private var resetInFlight = false
     private var cachedSearchItems: List<StoreItem>? = null
     private var searchableTextByItemId = emptyMap<Long, ItemText.SearchableText>()
@@ -49,6 +55,18 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
 
     val items: LiveData<List<StoreItem>> = _currentStoreId.flatMapLatest { storeId ->
         repository.getItemsForStore(storeId ?: 0L)
+    }.asLiveData()
+
+    val purchaseInsights: LiveData<PurchaseInsights> = combine(
+        repository.getPurchaseHistories(),
+        _forecastNow
+    ) { histories, now ->
+        withContext(Dispatchers.Default) {
+            PurchaseInsights(
+                histories = histories.associate { it.itemId to it.activations },
+                forecasts = PurchaseStatistics.forecast(histories, now)
+            )
+        }
     }.asLiveData()
 
     val filteredItems: LiveData<List<StoreItem>> = MediatorLiveData<List<StoreItem>>().apply {
@@ -62,7 +80,7 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
                 cachedSearchItems = allItems
             }
             val searchTerms = ItemText.compileSearchTerms(query)
-            val visibilityMode = _doneVisibilityMode.value ?: DoneVisibilityMode.CURRENT
+            val visibilityMode = _doneVisibilityMode.value ?: ItemVisibilityMode.CURRENT
             val recentMinutes = _recentlyDoneMinutes.value ?: 60
             val flushAt = _flushRecentlyDoneAt.value
             val isDragging = _isDragging.value ?: false
@@ -107,11 +125,12 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
                 return ItemText.matches(searchableText, searchTerms)
             }
 
-            fun matchesVisibility(storeItem: StoreItem, mode: DoneVisibilityMode): Boolean = when {
+            fun matchesVisibility(storeItem: StoreItem, mode: ItemVisibilityMode): Boolean = when {
                 isDragging -> true
+                mode == ItemVisibilityMode.NEXT -> storeItem.item.state == ItemState.DEACTIVATED
                 storeItem.item.state != ItemState.DEACTIVATED -> true
-                mode == DoneVisibilityMode.ALL -> true
-                mode == DoneVisibilityMode.CURRENT -> {
+                mode == ItemVisibilityMode.ALL -> true
+                mode == ItemVisibilityMode.CURRENT -> {
                     val changedAt = storeItem.item.stateChangedAt
                     changedAt != null && changedAt >= recentThreshold
                 }
@@ -122,8 +141,8 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
             fun matchesAvailability(storeItem: StoreItem): Boolean =
                 currentStore == null || currentStore == 0L || storeItem.isAvailable
 
-            val effectiveMode = if (query.isNotBlank() && visibilityMode == DoneVisibilityMode.CURRENT)
-                DoneVisibilityMode.ALL
+            val effectiveMode = if (query.isNotBlank() && visibilityMode != ItemVisibilityMode.ALL)
+                ItemVisibilityMode.ALL
             else
                 visibilityMode
 
@@ -137,7 +156,16 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
                 }
             }
 
-            value = result
+            value = if (effectiveMode == ItemVisibilityMode.NEXT && query.isBlank()) {
+                val forecasts = purchaseInsights.value?.forecasts.orEmpty()
+                result.withIndex()
+                    .sortedWith(compareByDescending<IndexedValue<StoreItem>> {
+                        forecasts[it.value.item.id]?.probability ?: 0.0
+                    }.thenBy { it.index })
+                    .map { it.value }
+            } else {
+                result
+            }
         }
 
         addSource(items) { update() }
@@ -147,11 +175,12 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
         addSource(_flushRecentlyDoneAt) { update() }
         addSource(_isDragging) { update() }
         addSource(_currentStoreId.asLiveData()) { update() }
+        addSource(purchaseInsights) { update() }
     }
 
     val currentStoreId: LiveData<Long?> = _currentStoreId.asLiveData()
     val searchQuery: LiveData<String> = _searchQuery
-    val doneVisibilityMode: LiveData<DoneVisibilityMode> = _doneVisibilityMode
+    val doneVisibilityMode: LiveData<ItemVisibilityMode> = _doneVisibilityMode
 
     internal fun importIdentity(text: String): ItemIdentity? {
         return ItemText.parseImportLine(text)?.let(ItemText::identity)
@@ -187,11 +216,11 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
     }
 
     fun cycleDoneVisibilityMode() {
-        val current = _doneVisibilityMode.value ?: DoneVisibilityMode.CURRENT
+        val current = _doneVisibilityMode.value ?: ItemVisibilityMode.CURRENT
         _doneVisibilityMode.value = current.next()
     }
 
-    fun setDoneVisibilityMode(mode: DoneVisibilityMode) {
+    fun setDoneVisibilityMode(mode: ItemVisibilityMode) {
         _doneVisibilityMode.value = mode
     }
 
@@ -221,6 +250,10 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
 
     fun setDragging(isDragging: Boolean) {
         _isDragging.value = isDragging
+    }
+
+    fun refreshForecasts() {
+        _forecastNow.value = System.currentTimeMillis()
     }
 
     fun addItem(name: String, onResult: (Result<Long>) -> Unit) {
@@ -264,6 +297,12 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
                 mistakeDoneSeconds(),
                 reactivateMinSeconds()
             )
+        }
+    }
+
+    fun recordBought(itemId: Long, onResult: (Result<Unit>) -> Unit) {
+        viewModelScope.launch {
+            onResult(repository.recordPurchase(itemId, historyDays()))
         }
     }
 
@@ -570,10 +609,7 @@ class MainViewModel(private val repository: ShoppingRepository) : ViewModel() {
 
     fun activateAllPostponed(onResult: (Result<Unit>) -> Unit) {
         viewModelScope.launch {
-            val result = repository.activateAllPostponed(
-                historyDays(),
-                reactivateMinSeconds()
-            )
+            val result = repository.activateAllPostponed()
             onResult(result)
         }
     }
