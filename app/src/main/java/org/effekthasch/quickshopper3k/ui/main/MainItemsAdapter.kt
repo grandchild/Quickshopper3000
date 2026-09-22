@@ -14,6 +14,8 @@ import org.effekthasch.quickshopper3k.ui.common.BaseDragAdapter
 import org.effekthasch.quickshopper3k.ui.common.applyItemRowHeight
 import org.effekthasch.quickshopper3k.ui.common.bindItemAmountBadge
 import org.effekthasch.quickshopper3k.ui.common.bindItemText
+import org.effekthasch.quickshopper3k.ui.common.bindItemTextHalo
+import org.effekthasch.quickshopper3k.ui.common.setItemTextOpacity
 
 class MainItemsAdapter(
     private val onItemClick: (StoreItem) -> Boolean,
@@ -218,6 +220,7 @@ class MainItemsAdapter(
                     showPrediction = false
                 )
             }
+            binding.itemNameHalo.bindItemTextHalo(storeItem.item)
             binding.itemNameText.bindItemText(storeItem.item)
 
             binding.itemAmountText.bindItemAmountBadge(storeItem.item.amount)
@@ -225,25 +228,27 @@ class MainItemsAdapter(
             when (storeItem.item.state) {
                 ItemState.ACTIVATED -> {
                     binding.itemStateIcon.visibility = View.GONE
-                    binding.itemNameText.alpha = 1.0f
+                    binding.itemNameText.setItemTextOpacity(1f)
                 }
 
                 ItemState.DEACTIVATED -> {
                     binding.itemStateIcon.visibility = View.VISIBLE
                     binding.itemStateIcon.setImageResource(R.drawable.ic_state_done)
-                    binding.itemNameText.alpha = 0.5f
+                    binding.itemNameText.setItemTextOpacity(0.5f)
                 }
 
                 ItemState.POSTPONED -> {
                     binding.itemStateIcon.visibility = View.VISIBLE
                     binding.itemStateIcon.setImageResource(R.drawable.ic_state_na)
-                    binding.itemNameText.alpha = 0.7f
+                    binding.itemNameText.setItemTextOpacity(0.7f)
                 }
             }
 
             if (!storeItem.isAvailable) {
+                binding.itemNameHalo.setTypeface(binding.itemNameHalo.typeface, Typeface.ITALIC)
                 binding.itemNameText.setTypeface(binding.itemNameText.typeface, Typeface.ITALIC)
             } else {
+                binding.itemNameHalo.setTypeface(null, Typeface.NORMAL)
                 binding.itemNameText.setTypeface(null, Typeface.NORMAL)
             }
 

@@ -10,6 +10,8 @@ import org.effekthasch.quickshopper3k.domain.model.StoreItem
 import org.effekthasch.quickshopper3k.ui.common.BaseDragAdapter
 import org.effekthasch.quickshopper3k.ui.common.applyItemRowHeight
 import org.effekthasch.quickshopper3k.ui.common.bindItemText
+import org.effekthasch.quickshopper3k.ui.common.bindItemTextHalo
+import org.effekthasch.quickshopper3k.ui.common.setItemTextOpacity
 
 class StoresItemsAdapter(
     private val onItemClick: () -> Boolean,
@@ -171,15 +173,14 @@ class StoresItemsAdapter(
 
         fun bind(storeItem: StoreItem, position: Int) {
             binding.root.applyItemRowHeight(rowHeightIndex())
+            binding.itemNameHalo.bindItemTextHalo(storeItem.item)
             binding.itemNameText.bindItemText(storeItem.item)
 
             binding.itemStateIcon.visibility = View.GONE
 
-            if (storeItem.isAvailable) {
-                binding.itemNameText.alpha = 1.0f
-            } else {
-                binding.itemNameText.alpha = 0.5f
-            }
+            binding.itemNameText.setItemTextOpacity(
+                if (storeItem.isAvailable) 1f else 0.5f
+            )
 
             if (isSelected(position)) {
                 binding.root.setBackgroundColor(

@@ -4,7 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.util.AttributeSet
-import android.util.TypedValue
+
 import android.view.View
 import androidx.core.content.ContextCompat
 import org.effekthasch.quickshopper3k.R
@@ -54,10 +54,7 @@ class PurchaseHistoryView @JvmOverloads constructor(
         val displayDuration = DISPLAY_DAYS.toLong() * MILLIS_PER_DAY
         val fadeStart = historyRight * 0.5f
         val maximumDiameter = height * 0.5f
-        historyPaint.color = themeColor(
-            android.R.attr.textColorSecondary,
-            ContextCompat.getColor(context, R.color.purchase_history_fallback)
-        )
+        historyPaint.color = ContextCompat.getColor(context, R.color.purchase_history_sphere)
 
         repeat(HISTORY_BUCKETS) { bucket ->
             val bucketStart = start + displayDuration * bucket / HISTORY_BUCKETS
@@ -91,15 +88,6 @@ class PurchaseHistoryView @JvmOverloads constructor(
         canvas.drawCircle(centerX, height * 0.5f, radius, predictionPaint)
     }
 
-    private fun themeColor(attribute: Int, fallback: Int): Int {
-        val value = TypedValue()
-        if (!context.theme.resolveAttribute(attribute, value, true)) return fallback
-        return if (value.resourceId != 0) {
-            ContextCompat.getColor(context, value.resourceId)
-        } else {
-            value.data
-        }
-    }
 
     private companion object {
         const val MILLIS_PER_DAY = 24 * 60 * 60 * 1000L

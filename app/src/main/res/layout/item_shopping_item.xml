@@ -52,6 +52,22 @@
     />
 
     <TextView
+        android:id="@+id/itemNameHalo"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="4dp"
+        android:importantForAccessibility="no"
+        android:maxLines="1"
+        android:textColor="?attr/colorSurface"
+        android:textSize="16sp"
+        android:ellipsize="end"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/itemAmountText"
+        app:layout_constraintStart_toEndOf="@+id/itemStateIcon"
+        app:layout_constraintTop_toTopOf="parent"
+    />
+
+    <TextView
         android:id="@+id/itemNameText"
         android:layout_width="0dp"
         android:layout_height="wrap_content"

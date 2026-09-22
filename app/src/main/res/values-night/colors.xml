@@ -11,7 +11,7 @@
 
     <color name="add_item_button_background">#1FFFFFFF</color>
     <color name="item_amount_badge">#40FFFFFF</color>
-    <color name="purchase_history_fallback">#B0B0B0</color>
+    <color name="purchase_history_sphere">#FFFFFF</color>
     <color name="selection_highlight">#42536B</color>
     <color name="purchase_prediction">#EF5350</color>
     <color name="import_preview_existing">#B0B0B0</color>
